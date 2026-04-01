@@ -11,10 +11,8 @@ app.use(express.json({ limit: '50mb' })); // لرفع الصور بصيغة Base
 app.use(express.static('public')); // مجلد الواجهات الذي سنضع فيه HTML
 
 // الاتصال بقاعدة بيانات MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
+// تم حذف useNewUrlParser و useUnifiedTopology لأنها لم تعد مدعومة وتسبب خطأ
+mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log('✅ تم الاتصال بقاعدة بيانات MongoDB Atlas بنجاح'))
 .catch((err) => console.log('❌ خطأ في الاتصال بقاعدة البيانات:', err));
 
