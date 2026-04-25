@@ -1,17 +1,12 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة التحكم</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Tajawal&display=swap" rel="stylesheet">
+<title>Admin</title>
 <style>
-body{font-family:Tajawal;background:#f4f8fb;margin:0}
-.login, .main{padding:20px}
-.card{background:#fff;padding:15px;margin:10px;border-radius:10px}
-button{padding:8px 12px;cursor:pointer}
-.milestone{padding:6px;margin:4px 0;border-radius:6px}
+body{font-family:sans-serif;background:#f4f8fb}
+.card{background:#fff;padding:15px;margin:10px}
+.milestone{padding:5px;margin:3px;border-radius:5px}
 .done{background:#d4edda}
 .pending{background:#eee}
 </style>
@@ -19,19 +14,18 @@ button{padding:8px 12px;cursor:pointer}
 
 <body>
 
-<div id="login" class="login">
-<h3>تسجيل الدخول</h3>
-<input id="user" placeholder="اسم المستخدم"><br><br>
-<input id="pass" type="password" placeholder="كلمة المرور"><br><br>
-<button onclick="login()">دخول</button>
+<div id="login">
+<h3>Login</h3>
+<input id="user"><br><br>
+<input id="pass" type="password"><br><br>
+<button onclick="login()">Login</button>
 </div>
 
 <div id="app" style="display:none">
 
 <div class="card">
-<h3>إضافة شحنة</h3>
-<input id="track" placeholder="رقم الحاوية"><br><br>
-
+<h3>Shipment</h3>
+<input id="track"><br>
 <select id="status">
 <option>Loading at Origin Warehouse</option>
 <option>Gated-in at Ningbo Port</option>
@@ -39,27 +33,23 @@ button{padding:8px 12px;cursor:pointer}
 <option>Arrived at Aden</option>
 <option>Customs Cleared</option>
 <option>Delivered to Aden Warehouse</option>
-</select><br><br>
-
-<button onclick="saveShipment()">حفظ</button>
+</select><br>
+<button onclick="save()">Save</button>
 </div>
 
 <div class="card">
-<h3>الشحنات</h3>
 <table id="table"></table>
 </div>
 
 <div class="card">
-<h3>إضافة عميل</h3>
-<input id="cname" placeholder="اسم"><br>
-<input id="ccont" placeholder="الحاوية"><br>
-<input id="cphone" placeholder="رقم الجوال"><br><br>
-
-<button onclick="addClient()">إضافة</button>
+<h3>Client</h3>
+<input id="name">
+<input id="container">
+<input id="phone">
+<button onclick="addClient()">Add</button>
 </div>
 
 <div class="card">
-<h3>العملاء</h3>
 <table id="ctable"></table>
 </div>
 
@@ -67,113 +57,94 @@ button{padding:8px 12px;cursor:pointer}
 
 <script>
 
-// ================= LOGIN =================
 async function login(){
-const res = await fetch('/api/login',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
-username:user.value,
-password:pass.value
-})
-});
+ const res = await fetch('/api/login',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+   username:user.value,
+   password:pass.value
+  })
+ });
 
-const data = await res.json();
-
-if(data.success){
-document.getElementById('login').style.display='none';
-document.getElementById('app').style.display='block';
-load();
-}else{
-alert("بيانات خاطئة");
-}
+ const data = await res.json();
+ if(data.success){
+  login.style.display='none';
+  app.style.display='block';
+  load();
+ }else alert("خطأ");
 }
 
-// ================= SHIPMENTS =================
-async function saveShipment(){
-
-await fetch('/api/shipment',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
-trackingNumber:track.value,
-status:status.value,
-location:""
-})
-});
-
-alert("تم الحفظ");
-load();
+// ===== shipments
+async function save(){
+ await fetch('/api/shipment',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+   trackingNumber:track.value,
+   status:status.value
+  })
+ });
+ load();
 }
 
-async function loadShipments(){
-const res = await fetch('/api/shipments');
-const data = await res.json();
+async function load(){
+ const res = await fetch('/api/shipments');
+ const data = await res.json();
 
-table.innerHTML="";
-data.forEach(s=>{
-table.innerHTML+=`
-<tr>
-<td>${s.id}</td>
-<td>${s.status}</td>
-<td>${milestones(s.status)}</td>
-</tr>`;
-});
+ table.innerHTML="";
+ data.forEach(s=>{
+  table.innerHTML+=`
+  <tr>
+   <td>${s.id}</td>
+   <td>${s.status}</td>
+   <td>${milestones(s.status)}</td>
+  </tr>`;
+ });
+
+ loadClients();
 }
 
 function milestones(status){
-const steps=[
-"Loading at Origin Warehouse",
-"Gated-in at Ningbo Port",
-"Loaded on Board",
-"Arrived at Aden",
-"Customs Cleared",
-"Delivered to Aden Warehouse"
-];
-
-let i=steps.indexOf(status);
-
-return steps.map((s,idx)=>
-`<div class="milestone ${idx<=i?'done':'pending'}">${s}</div>`
-).join('');
+ const steps=[
+ "Loading at Origin Warehouse",
+ "Gated-in at Ningbo Port",
+ "Loaded on Board",
+ "Arrived at Aden",
+ "Customs Cleared",
+ "Delivered to Aden Warehouse"
+ ];
+ let i=steps.indexOf(status);
+ return steps.map((s,idx)=>`<div class="milestone ${idx<=i?'done':'pending'}">${s}</div>`).join('');
 }
 
-// ================= CLIENTS =================
+// ===== clients
 async function addClient(){
-
-await fetch('/api/clients',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
-name:cname.value,
-container:ccont.value,
-phone:cphone.value
-})
-});
-
-alert("تم إضافة العميل");
-loadClients();
+ await fetch('/api/clients',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+   name:name.value,
+   container:container.value,
+   phone:phone.value
+  })
+ });
+ loadClients();
 }
 
 async function loadClients(){
-const res = await fetch('/api/clients');
-const data = await res.json();
+ const res = await fetch('/api/clients');
+ const data = await res.json();
 
-ctable.innerHTML="";
-data.forEach(c=>{
-ctable.innerHTML+=`
-<tr>
-<td>${c.name}</td>
-<td>${c.container}</td>
-<td>${c.phone}</td>
-</tr>`;
-});
-}
-
-// ================= INIT =================
-function load(){
-loadShipments();
-loadClients();
+ ctable.innerHTML="";
+ data.forEach(c=>{
+  ctable.innerHTML+=`
+  <tr>
+   <td>${c.name}</td>
+   <td>${c.container}</td>
+   <td>${c.phone}</td>
+  </tr>`;
+ });
 }
 
 </script>
