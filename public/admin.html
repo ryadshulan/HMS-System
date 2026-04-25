@@ -1,442 +1,560 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم | النجم الحديث</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #2b5c6a;
-            --secondary-color: #f16736;
-            --bg-color: #f4f8fb;
-            --sidebar-bg: #1a3c46;
-            --text-dark: #333;
-            --text-light: #fff;
-            --border-color: #ddd;
-        }
-        
-        body { 
-            font-family: 'Tajawal', sans-serif; 
-            background: var(--bg-color); 
-            margin: 0; 
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم | النجم الحديث</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2b5c6a;
+            --secondary-color: #f16736;
+            --bg-color: #f4f8fb;
+            --sidebar-bg: #1a3c46;
+            --text-dark: #333;
+            --text-light: #fff;
+            --border-color: #ddd;
+        }
+        
+        body { 
+            font-family: 'Tajawal', sans-serif; 
+            background: var(--bg-color); 
+            margin: 0; 
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-        /* شاشة الدخول */
-        #login-container {
-            background: #fff;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(43, 92, 106, 0.15);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-            z-index: 100;
-        }
+        /* شاشة الدخول */
+        #login-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(43, 92, 106, 0.15);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            z-index: 100;
+        }
 
-        #login-container img { max-width: 150px; margin-bottom: 20px; }
+        #login-container img { max-width: 150px; margin-bottom: 20px; }
 
-        /* لوحة التحكم */
-        #dashboard-container {
-            display: none;
-            width: 100%;
-            height: 100%;
-            flex-direction: row;
-        }
+        /* لوحة التحكم */
+        #dashboard-container {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: row;
+        }
 
-        .sidebar {
-            width: 260px;
-            background: var(--sidebar-bg);
-            color: var(--text-light);
-            display: flex;
-            flex-direction: column;
-        }
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+        }
 
-        .sidebar-logo { padding: 20px; background: #fff; text-align: center; border-bottom: 3px solid var(--secondary-color); }
-        .sidebar-logo img { max-width: 120px; }
+        .sidebar-logo { padding: 20px; background: #fff; text-align: center; border-bottom: 3px solid var(--secondary-color); }
+        .sidebar-logo img { max-width: 120px; }
 
-        .sidebar-menu { list-style: none; padding: 0; margin: 0; flex: 1; }
-        .sidebar-menu a {
-            display: flex; align-items: center; padding: 15px 20px; color: #ccc;
-            text-decoration: none; transition: 0.3s; cursor: pointer;
-        }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background: var(--primary-color); color: #fff; border-right: 4px solid var(--secondary-color); }
-        .sidebar-menu i { margin-left: 10px; width: 20px; }
+        .sidebar-menu { list-style: none; padding: 0; margin: 0; flex: 1; }
+        .sidebar-menu a {
+            display: flex; align-items: center; padding: 15px 20px; color: #ccc;
+            text-decoration: none; transition: 0.3s; cursor: pointer;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background: var(--primary-color); color: #fff; border-right: 4px solid var(--secondary-color); }
+        .sidebar-menu i { margin-left: 10px; width: 20px; }
 
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
 
-        .form-group { margin-bottom: 15px; text-align: right; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        .form-group { margin-bottom: 15px; text-align: right; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
 
-        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-primary { background: var(--primary-color); color: #fff; }
-        .btn-danger { background: #dc3545; color: #fff; }
-        .btn-edit { background: #ffc107; color: #333; margin-left: 5px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary { background: var(--primary-color); color: #fff; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-edit { background: #ffc107; color: #333; margin-left: 5px; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
-        th { background: #f8f9fa; color: var(--primary-color); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: var(--primary-color); }
 
-        .image-preview { max-width: 100%; height: 150px; object-fit: cover; margin-top: 10px; border-radius: 6px; display: none; }
-        
-        .content-section { display: none; }
-        .content-section.active { display: block; }
+        .image-preview { max-width: 100%; height: 150px; object-fit: cover; margin-top: 10px; border-radius: 6px; display: none; }
+        
+        .content-section { display: none; }
+        .content-section.active { display: block; }
 
-        .dashboard-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .dash-news-card { border: 1px solid #eee; border-radius: 8px; overflow: hidden; text-align: center; }
-        .dash-news-card img { width: 100%; height: 120px; object-fit: cover; }
-        
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #fff; }
-        .badge-add { background: #28a745; }
-        .badge-edit { background: #ffc107; color: #333; }
-        .badge-delete { background: #dc3545; }
-    </style>
+        .dashboard-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .dash-news-card { border: 1px solid #eee; border-radius: 8px; overflow: hidden; text-align: center; }
+        .dash-news-card img { width: 100%; height: 120px; object-fit: cover; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #fff; }
+        .badge-add { background: #28a745; }
+        .badge-edit { background: #ffc107; color: #333; }
+        .badge-delete { background: #dc3545; }
+    </style>
 </head>
 <body>
 
-    <div id="login-container">
-       <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
-        <h2>دخول الإدارة</h2>
-        <div id="login-error" style="color:red; display:none; margin-bottom:10px;">خطأ في البيانات!</div>
-        <div class="form-group">
-            <input type="text" id="loginUser" placeholder="اسم المستخدم">
-        </div>
-        <div class="form-group">
-            <input type="password" id="loginPass" placeholder="كلمة المرور">
-        </div>
-        <button class="btn btn-primary" style="width:100%" onclick="verifyLogin()">دخول</button>
-    </div>
+    <div id="login-container">
+       <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
+        <h2>دخول الإدارة</h2>
+        <div id="login-error" style="color:red; display:none; margin-bottom:10px;">خطأ في البيانات!</div>
+        <div class="form-group">
+            <input type="text" id="loginUser" placeholder="اسم المستخدم">
+        </div>
+        <div class="form-group">
+            <input type="password" id="loginPass" placeholder="كلمة المرور">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="verifyLogin()">دخول</button>
+    </div>
 
-    <div id="dashboard-container">
-        <aside class="sidebar">
-            <div class="sidebar-logo">
-                <img src="uploads/شعار النجم الحديث.jpg" alt="Logo">
-            </div>
-            <ul class="sidebar-menu">
-                <li><a onclick="switchTab('dashboard')" id="tab-dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
-                <li><a onclick="switchTab('shipments')" id="tab-shipments"><i class="fas fa-box"></i> الشحنات</a></li>
-                <li><a onclick="switchTab('news')" id="tab-news"><i class="fas fa-newspaper"></i> الأخبار</a></li>
-                <li><a onclick="switchTab('logs')" id="tab-logs"><i class="fas fa-history"></i> السجل</a></li>
-                <li style="margin-top:auto"><a onclick="logout()" style="color:#ff7675"><i class="fas fa-sign-out-alt"></i> خروج</a></li>
-            </ul>
-        </aside>
+    <div id="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
+            </div>
+            <ul class="sidebar-menu">
+                <li><a onclick="switchTab('dashboard')" id="tab-dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
+                <li><a onclick="switchTab('shipments')" id="tab-shipments"><i class="fas fa-box"></i> الشحنات</a></li>
+                <li><a onclick="switchTab('receipts')" id="tab-receipts"><i class="fas fa-file-invoice-dollar"></i> سندات القبض</a></li>
+                <li><a onclick="switchTab('news')" id="tab-news"><i class="fas fa-newspaper"></i> الأخبار</a></li>
+                <li><a onclick="switchTab('logs')" id="tab-logs"><i class="fas fa-history"></i> السجل</a></li>
+                <li style="margin-top:auto"><a onclick="logout()" style="color:#ff7675"><i class="fas fa-sign-out-alt"></i> خروج</a></li>
+            </ul>
+        </aside>
 
-        <main class="main-content">
-            <section id="dashboard-section" class="content-section active">
-                <div class="card">
-                    <h2>نظرة عامة</h2>
-                    <div class="dashboard-news-grid" id="dashboardNewsContainer"></div>
-                </div>
-            </section>
+        <main class="main-content">
+            <section id="dashboard-section" class="content-section active">
+                <div class="card">
+                    <h2>نظرة عامة</h2>
+                    <div class="dashboard-news-grid" id="dashboardNewsContainer"></div>
+                </div>
+            </section>
 
-            <section id="shipments-section" class="content-section">
-                <div class="card">
-                    <h2 id="shipmentFormTitle">إدارة الشحنات</h2>
-                    <input type="hidden" id="shipmentEditId">
-                    <div class="form-group">
-                        <label>رقم التتبع:</label>
-                        <input type="text" id="trackId">
-                    </div>
-                    <div class="form-group">
-                        <label>الحالة:</label>
-                        <select id="trackStatus">
-                            <option value="تم الاستلام في مستودعات الصين">تم الاستلام في مستودعات الصين</option>
-                            <option value="تم التحميل على السفينة">تم التحميل على السفينة</option>
-                            <option value="في الطريق البحري">في الطريق البحري</option>
-                            <option value="وصلت ميناء عدن">وصلت ميناء عدن</option>
-                            <option value="جاهزة للتسليم">جاهزة للتسليم</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>الموقع:</label>
-                        <input type="text" id="trackLocation">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveShipment()">حفظ</button>
-                    <button id="cancelShipmentBtn" class="btn" style="display:none" onclick="resetShipmentForm()">إلغاء</button>
-                </div>
-                <div class="card">
-                    <table>
-                        <thead><tr><th>الرقم</th><th>الحالة</th><th>الموقع</th><th>إجراء</th></tr></thead>
-                        <tbody id="shipmentsTableBody"></tbody>
-                    </table>
-                </div>
-            </section>
+            <section id="shipments-section" class="content-section">
+                <div class="card">
+                    <h2 id="shipmentFormTitle">إدارة الشحنات</h2>
+                    <input type="hidden" id="shipmentEditId">
+                    <div class="form-group">
+                        <label>رقم التتبع:</label>
+                        <input type="text" id="trackId">
+                    </div>
+                    <div class="form-group">
+                        <label>الحالة:</label>
+                        <select id="trackStatus">
+                            <option value="تم الاستلام في مستودعات الصين">تم الاستلام في مستودعات الصين</option>
+                            <option value="تم التحميل على السفينة">تم التحميل على السفينة</option>
+                            <option value="في الطريق البحري">في الطريق البحري</option>
+                            <option value="وصلت ميناء عدن">وصلت ميناء عدن</option>
+                            <option value="جاهزة للتسليم">جاهزة للتسليم</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>الموقع:</label>
+                        <input type="text" id="trackLocation">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveShipment()">حفظ</button>
+                    <button id="cancelShipmentBtn" class="btn" style="display:none" onclick="resetShipmentForm()">إلغاء</button>
+                </div>
+                <div class="card">
+                    <table>
+                        <thead><tr><th>الرقم</th><th>الحالة</th><th>الموقع</th><th>إجراء</th></tr></thead>
+                        <tbody id="shipmentsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
 
-            <section id="news-section" class="content-section">
-                <div class="card">
-                    <h2 id="newsFormTitle">إضافة خبر</h2>
-                    <input type="hidden" id="newsEditId">
-                    <div class="form-group">
-                        <label>العنوان:</label>
-                        <input type="text" id="newsTitle">
-                    </div>
-                    <div class="form-group">
-                        <label>التاريخ:</label>
-                        <input type="date" id="newsDate">
-                    </div>
-                    <div class="form-group">
-                        <label>التفاصيل:</label>
-                        <textarea id="newsDesc"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>الصورة:</label>
-                        <input type="file" id="newsImage" accept="image/*" onchange="previewImage(event)">
-                        <img id="imagePreview" class="image-preview">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveNews()">حفظ الخبر</button>
-                    <button id="cancelNewsBtn" class="btn" style="display:none" onclick="resetNewsForm()">إلغاء</button>
-                </div>
-                <div class="card">
-                    <table id="newsTable">
-                        <thead><tr><th>الصورة</th><th>العنوان</th><th>التاريخ</th><th>إجراء</th></tr></thead>
-                        <tbody id="newsTableBody"></tbody>
-                    </table>
-                </div>
-            </section>
+            <section id="receipts-section" class="content-section">
+                <div class="card">
+                    <h2 id="receiptFormTitle">إضافة سند قبض</h2>
+                    <input type="hidden" id="receiptEditId">
+                    <div class="form-group">
+                        <label>رقم السند:</label>
+                        <input type="text" id="receiptNo" placeholder="مثال: 1001">
+                    </div>
+                    <div class="form-group">
+                        <label>التاريخ:</label>
+                        <input type="date" id="receiptDate">
+                    </div>
+                    <div class="form-group">
+                        <label>استلمنا من السيد/ة:</label>
+                        <input type="text" id="receiptName">
+                    </div>
+                    <div class="form-group">
+                        <label>مبلغ وقدره:</label>
+                        <input type="number" id="receiptAmount">
+                    </div>
+                    <div class="form-group">
+                        <label>وذلك عن:</label>
+                        <input type="text" id="receiptDesc">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveReceipt()">حفظ السند</button>
+                    <button id="cancelReceiptBtn" class="btn" style="display:none" onclick="resetReceiptForm()">إلغاء</button>
+                </div>
+                <div class="card">
+                    <table>
+                        <thead><tr><th>رقم السند</th><th>التاريخ</th><th>الاسم</th><th>المبلغ</th><th>إجراء</th></tr></thead>
+                        <tbody id="receiptsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="news-section" class="content-section">
+                <div class="card">
+                    <h2 id="newsFormTitle">إضافة خبر</h2>
+                    <input type="hidden" id="newsEditId">
+                    <div class="form-group">
+                        <label>العنوان:</label>
+                        <input type="text" id="newsTitle">
+                    </div>
+                    <div class="form-group">
+                        <label>التاريخ:</label>
+                        <input type="date" id="newsDate">
+                    </div>
+                    <div class="form-group">
+                        <label>التفاصيل:</label>
+                        <textarea id="newsDesc"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>الصورة:</label>
+                        <input type="file" id="newsImage" accept="image/*" onchange="previewImage(event)">
+                        <img id="imagePreview" class="image-preview">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveNews()">حفظ الخبر</button>
+                    <button id="cancelNewsBtn" class="btn" style="display:none" onclick="resetNewsForm()">إلغاء</button>
+                </div>
+                <div class="card">
+                    <table id="newsTable">
+                        <thead><tr><th>الصورة</th><th>العنوان</th><th>التاريخ</th><th>إجراء</th></tr></thead>
+                        <tbody id="newsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
 
-            <section id="logs-section" class="content-section">
-                <div class="card">
-                    <h2>السجل الرقابي</h2>
-                    <table>
-                        <thead><tr><th>الوقت</th><th>العملية</th><th>القسم</th><th>التفاصيل</th></tr></thead>
-                        <tbody id="logsTableBody"></tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-    </div>
+            <section id="logs-section" class="content-section">
+                <div class="card">
+                    <h2>السجل الرقابي</h2>
+                    <table>
+                        <thead><tr><th>الوقت</th><th>العملية</th><th>القسم</th><th>التفاصيل</th></tr></thead>
+                        <tbody id="logsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
 
-    <script>
-        const SECURE_USER = "YWRtaW4="; // admin
-        const SECURE_PASS = "YWRtaW4xMjM="; // admin123
+    <script>
+        const SECURE_USER = "YWRtaW4="; // admin
+        const SECURE_PASS = "YWRtaW4xMjM="; // admin123
 
-        function verifyLogin() {
-            const u = document.getElementById('loginUser').value;
-            const p = document.getElementById('loginPass').value;
-            if (btoa(u) === SECURE_USER && btoa(p) === SECURE_PASS) {
-                sessionStorage.setItem('hms_auth', 'true');
-                showDashboard();
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-            }
-        }
+        function verifyLogin() {
+            const u = document.getElementById('loginUser').value;
+            const p = document.getElementById('loginPass').value;
+            if (btoa(u) === SECURE_USER && btoa(p) === SECURE_PASS) {
+                sessionStorage.setItem('hms_auth', 'true');
+                showDashboard();
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
 
-        function showDashboard() {
-            document.getElementById('login-container').style.display = 'none';
-            document.getElementById('dashboard-container').style.display = 'flex';
-            document.body.style.display = 'block';
-            initDashboard();
-        }
+        function showDashboard() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('dashboard-container').style.display = 'flex';
+            document.body.style.display = 'block';
+            initDashboard();
+        }
 
-        function logout() {
-            sessionStorage.clear();
-            location.reload();
-        }
+        function logout() {
+            sessionStorage.clear();
+            location.reload();
+        }
 
-        window.onload = () => {
-            if(sessionStorage.getItem('hms_auth') === 'true') showDashboard();
-        };
+        window.onload = () => {
+            if(sessionStorage.getItem('hms_auth') === 'true') showDashboard();
+        };
 
-        let shipments = [];
-        let newsList = [];
-        let logs = JSON.parse(localStorage.getItem('hms_logs')) || [];
+        let shipments = [];
+        let newsList = [];
+        let receipts = []; // مصفوفة السندات المضافة
+        let logs = JSON.parse(localStorage.getItem('hms_logs')) || [];
 
-        async function initDashboard() {
-            await fetchShipments();
-            await fetchNews();
-            renderLogs();
-        }
+        async function initDashboard() {
+            await fetchShipments();
+            await fetchNews();
+            await fetchReceipts(); // استدعاء دالة جلب السندات
+            renderLogs();
+        }
 
-        function switchTab(id) {
-            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
-            document.getElementById(id + '-section').classList.add('active');
-            document.getElementById('tab-' + id).classList.add('active');
-        }
+        function switchTab(id) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
+            document.getElementById(id + '-section').classList.add('active');
+            document.getElementById('tab-' + id).classList.add('active');
+        }
 
-        // الشحنات
-        async function fetchShipments() {
-            try {
-                const res = await fetch('/api/shipments');
-                shipments = await res.json();
-                renderShipments();
-            } catch(e) { console.error(e); }
-        }
+        // الشحنات
+        async function fetchShipments() {
+            try {
+                const res = await fetch('/api/shipments');
+                shipments = await res.json();
+                renderShipments();
+            } catch(e) { console.error(e); }
+        }
 
-        function renderShipments() {
-            const tbody = document.getElementById('shipmentsTableBody');
-            tbody.innerHTML = '';
-            shipments.forEach(s => {
-                tbody.innerHTML += `<tr>
-                    <td>${s.id}</td><td>${s.status}</td><td>${s.location}</td>
-                    <td>
-                        <button class="btn btn-edit" onclick="editShipment('${s.id}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-danger" onclick="deleteShipment('${s.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
-            });
-        }
+        function renderShipments() {
+            const tbody = document.getElementById('shipmentsTableBody');
+            tbody.innerHTML = '';
+            shipments.forEach(s => {
+                tbody.innerHTML += `<tr>
+                    <td>${s.id}</td><td>${s.status}</td><td>${s.location}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editShipment('${s.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger" onclick="deleteShipment('${s.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+        }
 
-        async function saveShipment() {
-            const trackingNumber = document.getElementById('trackId').value;
-            const status = document.getElementById('trackStatus').value;
-            const location = document.getElementById('trackLocation').value;
-            if(!trackingNumber) return alert("ادخل الرقم");
+        async function saveShipment() {
+            const trackingNumber = document.getElementById('trackId').value;
+            const status = document.getElementById('trackStatus').value;
+            const location = document.getElementById('trackLocation').value;
+            if(!trackingNumber) return alert("ادخل الرقم");
 
-            await fetch('/api/shipment', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({trackingNumber, status, location})
-            });
-            addLog('حفظ/تعديل', 'الشحنات', `رقم: ${trackingNumber}`);
-            resetShipmentForm();
-            fetchShipments();
-        }
+            await fetch('/api/shipment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({trackingNumber, status, location})
+            });
+            addLog('حفظ/تعديل', 'الشحنات', `رقم: ${trackingNumber}`);
+            resetShipmentForm();
+            fetchShipments();
+        }
 
-        async function deleteShipment(id) {
-            if(!confirm("حذف؟")) return;
-            await fetch(`/api/shipment/${id}`, {method: 'DELETE'});
-            addLog('حذف', 'الشحنات', `رقم: ${id}`);
-            fetchShipments();
-        }
+        async function deleteShipment(id) {
+            if(!confirm("حذف؟")) return;
+            await fetch(`/api/shipment/${id}`, {method: 'DELETE'});
+            addLog('حذف', 'الشحنات', `رقم: ${id}`);
+            fetchShipments();
+        }
 
-        function editShipment(id) {
-            const s = shipments.find(x => x.id === id);
-            document.getElementById('trackId').value = s.id;
-            document.getElementById('trackStatus').value = s.status;
-            document.getElementById('trackLocation').value = s.location;
-            document.getElementById('shipmentFormTitle').innerText = "تعديل شحنة";
-            document.getElementById('cancelShipmentBtn').style.display = "inline-block";
-        }
+        function editShipment(id) {
+            const s = shipments.find(x => x.id === id);
+            document.getElementById('trackId').value = s.id;
+            document.getElementById('trackStatus').value = s.status;
+            document.getElementById('trackLocation').value = s.location;
+            document.getElementById('shipmentFormTitle').innerText = "تعديل شحنة";
+            document.getElementById('cancelShipmentBtn').style.display = "inline-block";
+        }
 
-        function resetShipmentForm() {
-            document.getElementById('trackId').value = "";
-            document.getElementById('trackLocation').value = "";
-            document.getElementById('shipmentFormTitle').innerText = "إدارة الشحنات";
-            document.getElementById('cancelShipmentBtn').style.display = "none";
-        }
+        function resetShipmentForm() {
+            document.getElementById('trackId').value = "";
+            document.getElementById('trackLocation').value = "";
+            document.getElementById('shipmentFormTitle').innerText = "إدارة الشحنات";
+            document.getElementById('cancelShipmentBtn').style.display = "none";
+        }
 
-        // الأخبار
-        async function fetchNews() {
-            try {
-                const res = await fetch('/api/news');
-                newsList = await res.json();
-                renderNews();
-                renderDashboardNews();
-            } catch(e) { console.error(e); }
-        }
+        // ================= بداية دوال سندات القبض =================
+        async function fetchReceipts() {
+            try {
+                const res = await fetch('/api/receipts');
+                if(res.ok) receipts = await res.json();
+                renderReceipts();
+            } catch(e) { console.error(e); }
+        }
 
-        let currentImageBase64 = "";
-        function previewImage(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (el) => {
-                currentImageBase64 = el.target.result;
-                document.getElementById('imagePreview').src = currentImageBase64;
-                document.getElementById('imagePreview').style.display = "block";
-            };
-            reader.readAsDataURL(file);
-        }
+        function renderReceipts() {
+            const tbody = document.getElementById('receiptsTableBody');
+            tbody.innerHTML = '';
+            receipts.forEach(r => {
+                const id = r._id || r.id; // التوافق مع نوع الـ ID
+                tbody.innerHTML += `<tr>
+                    <td>${r.receiptNo}</td><td>${r.date}</td><td>${r.name}</td><td>${r.amount}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editReceipt('${id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger" onclick="deleteReceipt('${id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+        }
 
-        async function saveNews() {
-            const title = document.getElementById('newsTitle').value;
-            const date = document.getElementById('newsDate').value;
-            const desc = document.getElementById('newsDesc').value;
-            const editId = document.getElementById('newsEditId').value;
+        async function saveReceipt() {
+            const receiptNo = document.getElementById('receiptNo').value;
+            const date = document.getElementById('receiptDate').value;
+            const name = document.getElementById('receiptName').value;
+            const amount = document.getElementById('receiptAmount').value;
+            const desc = document.getElementById('receiptDesc').value;
+            const editId = document.getElementById('receiptEditId').value;
 
-            if(!title) return alert("ادخل العنوان");
+            if(!receiptNo || !name || !amount) return alert("الرجاء إدخال البيانات الأساسية (الرقم، الاسم، المبلغ)");
 
-            const payload = { title, date, desc, image: currentImageBase64 };
+            const payload = { receiptNo, date, name, amount, desc };
 
-            if(editId) {
-                // في حالة التعديل، نحذف القديم لتبسيط الكود أو نرسل طلب تحديث
-                await fetch(`/api/news/${editId}`, {method: 'DELETE'});
-            }
+            if(editId) {
+                await fetch(`/api/receipts/${editId}`, {method: 'DELETE'});
+            }
 
-            await fetch('/api/news', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
+            await fetch('/api/receipts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
 
-            addLog(editId ? 'تعديل' : 'إضافة', 'الأخبار', title);
-            resetNewsForm();
-            fetchNews();
-        }
+            addLog(editId ? 'تعديل' : 'إضافة', 'سندات القبض', `سند رقم: ${receiptNo}`);
+            resetReceiptForm();
+            fetchReceipts();
+        }
 
-        async function deleteNews(id) {
-            if(!confirm("حذف الخبر؟")) return;
-            await fetch(`/api/news/${id}`, {method: 'DELETE'});
-            addLog('حذف', 'الأخبار', 'تم حذف خبر');
-            fetchNews();
-        }
+        async function deleteReceipt(id) {
+            if(!confirm("هل أنت متأكد من حذف السند؟")) return;
+            await fetch(`/api/receipts/${id}`, {method: 'DELETE'});
+            addLog('حذف', 'سندات القبض', `تم حذف سند`);
+            fetchReceipts();
+        }
 
-        function editNews(id) {
-            const n = newsList.find(x => x._id === id);
-            document.getElementById('newsTitle').value = n.title;
-            document.getElementById('newsDate').value = n.date;
-            document.getElementById('newsDesc').value = n.desc;
-            document.getElementById('newsEditId').value = n._id;
-            currentImageBase64 = n.image;
-            document.getElementById('imagePreview').src = n.image;
-            document.getElementById('imagePreview').style.display = "block";
-            document.getElementById('cancelNewsBtn').style.display = "inline-block";
-        }
+        function editReceipt(id) {
+            const r = receipts.find(x => (x._id || x.id) === id);
+            document.getElementById('receiptNo').value = r.receiptNo;
+            document.getElementById('receiptDate').value = r.date;
+            document.getElementById('receiptName').value = r.name;
+            document.getElementById('receiptAmount').value = r.amount;
+            document.getElementById('receiptDesc').value = r.desc;
+            document.getElementById('receiptEditId').value = id;
+            document.getElementById('receiptFormTitle').innerText = "تعديل سند القبض";
+            document.getElementById('cancelReceiptBtn').style.display = "inline-block";
+        }
 
-        function resetNewsForm() {
-            document.getElementById('newsTitle').value = "";
-            document.getElementById('newsEditId').value = "";
-            document.getElementById('imagePreview').style.display = "none";
-            document.getElementById('cancelNewsBtn').style.display = "none";
-        }
+        function resetReceiptForm() {
+            document.getElementById('receiptNo').value = "";
+            document.getElementById('receiptDate').value = "";
+            document.getElementById('receiptName').value = "";
+            document.getElementById('receiptAmount').value = "";
+            document.getElementById('receiptDesc').value = "";
+            document.getElementById('receiptEditId').value = "";
+            document.getElementById('receiptFormTitle').innerText = "إضافة سند قبض";
+            document.getElementById('cancelReceiptBtn').style.display = "none";
+        }
+        // ================= نهاية دوال سندات القبض =================
 
-        function renderNews() {
-            const tbody = document.getElementById('newsTableBody');
-            tbody.innerHTML = '';
-            newsList.forEach(n => {
-                tbody.innerHTML += `<tr>
-                    <td><img src="${n.image}" width="50"></td><td>${n.title}</td><td>${n.date}</td>
-                    <td>
-                        <button class="btn btn-edit" onclick="editNews('${n._id}')">تعديل</button>
-                        <button class="btn btn-danger" onclick="deleteNews('${n._id}')">حذف</button>
-                    </td>
-                </tr>`;
-            });
-        }
+        // الأخبار
+        async function fetchNews() {
+            try {
+                const res = await fetch('/api/news');
+                newsList = await res.json();
+                renderNews();
+                renderDashboardNews();
+            } catch(e) { console.error(e); }
+        }
 
-        function renderDashboardNews() {
-            const container = document.getElementById('dashboardNewsContainer');
-            container.innerHTML = '';
-            newsList.slice(0, 3).forEach(n => {
-                container.innerHTML += `<div class="dash-news-card">
-                    <img src="${n.image}">
-                    <div style="padding:10px"><h4>${n.title}</h4></div>
-                </div>`;
-            });
-        }
+        let currentImageBase64 = "";
+        function previewImage(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (el) => {
+                currentImageBase64 = el.target.result;
+                document.getElementById('imagePreview').src = currentImageBase64;
+                document.getElementById('imagePreview').style.display = "block";
+            };
+            reader.readAsDataURL(file);
+        }
 
-        function addLog(action, section, details) {
-            const log = { time: new Date().toLocaleString('ar-EG'), action, section, details };
-            logs.unshift(log);
-            localStorage.setItem('hms_logs', JSON.stringify(logs));
-            renderLogs();
-        }
+        async function saveNews() {
+            const title = document.getElementById('newsTitle').value;
+            const date = document.getElementById('newsDate').value;
+            const desc = document.getElementById('newsDesc').value;
+            const editId = document.getElementById('newsEditId').value;
 
-        function renderLogs() {
-            const tbody = document.getElementById('logsTableBody');
-            tbody.innerHTML = '';
-            logs.forEach(l => {
-                tbody.innerHTML += `<tr><td>${l.time}</td><td>${l.action}</td><td>${l.section}</td><td>${l.details}</td></tr>`;
-            });
-        }
-    </script>
+            if(!title) return alert("ادخل العنوان");
+
+            const payload = { title, date, desc, image: currentImageBase64 };
+
+            if(editId) {
+                await fetch(`/api/news/${editId}`, {method: 'DELETE'});
+            }
+
+            await fetch('/api/news', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            addLog(editId ? 'تعديل' : 'إضافة', 'الأخبار', title);
+            resetNewsForm();
+            fetchNews();
+        }
+
+        async function deleteNews(id) {
+            if(!confirm("حذف الخبر؟")) return;
+            await fetch(`/api/news/${id}`, {method: 'DELETE'});
+            addLog('حذف', 'الأخبار', 'تم حذف خبر');
+            fetchNews();
+        }
+
+        function editNews(id) {
+            const n = newsList.find(x => x._id === id);
+            document.getElementById('newsTitle').value = n.title;
+            document.getElementById('newsDate').value = n.date;
+            document.getElementById('newsDesc').value = n.desc;
+            document.getElementById('newsEditId').value = n._id;
+            currentImageBase64 = n.image;
+            document.getElementById('imagePreview').src = n.image;
+            document.getElementById('imagePreview').style.display = "block";
+            document.getElementById('cancelNewsBtn').style.display = "inline-block";
+        }
+
+        function resetNewsForm() {
+            document.getElementById('newsTitle').value = "";
+            document.getElementById('newsEditId').value = "";
+            document.getElementById('imagePreview').style.display = "none";
+            document.getElementById('cancelNewsBtn').style.display = "none";
+        }
+
+        function renderNews() {
+            const tbody = document.getElementById('newsTableBody');
+            tbody.innerHTML = '';
+            newsList.forEach(n => {
+                tbody.innerHTML += `<tr>
+                    <td><img src="${n.image}" width="50"></td><td>${n.title}</td><td>${n.date}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editNews('${n._id}')">تعديل</button>
+                        <button class="btn btn-danger" onclick="deleteNews('${n._id}')">حذف</button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function renderDashboardNews() {
+            const container = document.getElementById('dashboardNewsContainer');
+            container.innerHTML = '';
+            newsList.slice(0, 3).forEach(n => {
+                container.innerHTML += `<div class="dash-news-card">
+                    <img src="${n.image}">
+                    <div style="padding:10px"><h4>${n.title}</h4></div>
+                </div>`;
+            });
+        }
+
+        function addLog(action, section, details) {
+            const log = { time: new Date().toLocaleString('ar-EG'), action, section, details };
+            logs.unshift(log);
+            localStorage.setItem('hms_logs', JSON.stringify(logs));
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsTableBody');
+            tbody.innerHTML = '';
+            logs.forEach(l => {
+                tbody.innerHTML += `<tr><td>${l.time}</td><td>${l.action}</td><td>${l.section}</td><td>${l.details}</td></tr>`;
+            });
+        }
+    </script>
 </body>
 </html>
