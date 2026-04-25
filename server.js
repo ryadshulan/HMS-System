@@ -1,148 +1,163 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
 
-// إعدادات الميدل وير (Middlewares)
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); 
-app.use(express.static('public')); 
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static('public'));
+app.use('/uploads', express.static('uploads'));
 
-// الاتصال بقاعدة بيانات MongoDB Atlas
+// ================= DB =================
 mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log('✅ تم الاتصال بقاعدة بيانات MongoDB Atlas بنجاح'))
-.catch((err) => console.log('❌ خطأ في الاتصال بقاعدة البيانات:', err));
+.then(() => console.log('✅ MongoDB Connected'))
+.catch(err => console.log('❌ DB Error:', err));
 
-// ==========================================
-// تعريف الجداول المحدثة (Updated Schemas)
-// ==========================================
+// ================= Upload =================
+const storage = multer.diskStorage({
+    destination: 'uploads/',
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+const upload = multer({ storage });
 
-// 1. جدول الشحنات المحدث ليدعم المراحل (Milestones)
+// ================= Schemas =================
+
+// Users
+const userSchema = new mongoose.Schema({
+    username: String,
+    password: String
+});
+const User = mongoose.model('User', userSchema);
+
+// Clients
+const clientSchema = new mongoose.Schema({
+    name: String,
+    container: String,
+    phone: String
+});
+const Client = mongoose.model('Client', clientSchema);
+
+// Shipments
 const shipmentSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true }, // رقم التتبع
+    id: { type: String, required: true, unique: true },
     status: String,
     location: String,
     updatedAt: { type: Date, default: Date.now },
-    // إضافة الحقل الجديد للمراحل الست
     milestones: {
-        m1: { type: String, default: 'pending' }, // مخازن الصين
-        m2: { type: String, default: 'pending' }, // ميناء نينغبو
-        m3: { type: String, default: 'pending' }, // التحميل للباخرة
-        m4: { type: String, default: 'pending' }, // وصول عدن
-        m5: { type: String, default: 'pending' }, // التخليص الجمركي
-        m6: { type: String, default: 'pending' }  // مستودع عدن
+        m1: { type: String, default: 'pending' },
+        m2: { type: String, default: 'pending' },
+        m3: { type: String, default: 'pending' },
+        m4: { type: String, default: 'pending' },
+        m5: { type: String, default: 'pending' },
+        m6: { type: String, default: 'pending' }
     }
 });
 const Shipment = mongoose.model('Shipment', shipmentSchema);
 
-// 2. جدول الأخبار (بدون تغيير)
+// News
 const newsSchema = new mongoose.Schema({
     title: String,
     date: String,
     desc: String,
-    image: String, 
+    image: String,
     createdAt: { type: Date, default: Date.now }
 });
 const News = mongoose.model('News', newsSchema);
 
+// ================= AUTH =================
+app.post('/api/login', async (req, res) => {
+    const user = await User.findOne(req.body);
+    res.json({ success: !!user });
+});
 
-// ==========================================
-// برمجة الروابط (API Routes) المحدثة
-// ==========================================
+// ================= Upload API =================
+app.post('/api/upload', upload.single('file'), (req, res) => {
+    res.json({ url: '/uploads/' + req.file.filename });
+});
 
-// --- مسارات الشحنات ---
-
-// إضافة أو تحديث شحنة (تم تحديثه ليدعم المراحل)
+// ================= Shipments =================
 app.post('/api/shipment', async (req, res) => {
     try {
         const { trackingNumber, status, location, milestones } = req.body;
-        
+
         const shipment = await Shipment.findOneAndUpdate(
             { id: trackingNumber },
-            { 
-                status, 
-                location, 
-                milestones, // حفظ كائن المراحل الست
-                updatedAt: Date.now() 
+            {
+                status,
+                location,
+                milestones,
+                updatedAt: Date.now()
             },
             { new: true, upsert: true }
         );
-        res.status(200).json({ message: "تم الحفظ بنجاح", shipment });
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ أثناء حفظ الشحنة" });
-    }
-});
 
-// البحث عن شحنة (للتتبع - سيعيد الآن بيانات المراحل تلقائياً)
-app.get('/api/shipment/:id', async (req, res) => {
-    try {
-        const shipment = await Shipment.findOne({ id: req.params.id });
-        if (shipment) {
-            res.status(200).json(shipment);
-        } else {
-            res.status(404).json({ message: "الشحنة غير موجودة" });
+        // 📱 إشعار عند آخر مرحلة
+        if (milestones?.m6 === 'completed') {
+            const clients = await Client.find({ container: trackingNumber });
+
+            clients.forEach(c => {
+                console.log(`📲 ارسال واتساب الى ${c.phone}`);
+                // 🔥 اربط API واتساب هنا
+            });
         }
+
+        res.status(200).json({ message: "تم الحفظ", shipment });
+
     } catch (error) {
-        res.status(500).json({ error: "حدث خطأ في الخادم" });
+        res.status(500).json({ error: "خطأ في الحفظ" });
     }
 });
 
-// جلب جميع الشحنات
 app.get('/api/shipments', async (req, res) => {
-    try {
-        const shipments = await Shipment.find().sort({ updatedAt: -1 });
-        res.status(200).json(shipments);
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ" });
-    }
+    const data = await Shipment.find().sort({ updatedAt: -1 });
+    res.json(data);
 });
 
-// حذف شحنة
+app.get('/api/shipment/:id', async (req, res) => {
+    const data = await Shipment.findOne({ id: req.params.id });
+    res.json(data);
+});
+
 app.delete('/api/shipment/:id', async (req, res) => {
-    try {
-        await Shipment.findOneAndDelete({ id: req.params.id });
-        res.status(200).json({ message: "تم الحذف" });
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ" });
-    }
+    await Shipment.findOneAndDelete({ id: req.params.id });
+    res.json({ message: "تم الحذف" });
 });
 
-// --- مسارات الأخبار (كما هي) ---
+// ================= Clients =================
+app.post('/api/clients', async (req, res) => {
+    await Client.create(req.body);
+    res.json({ message: "تم إضافة العميل" });
+});
 
+app.get('/api/clients', async (req, res) => {
+    const data = await Client.find();
+    res.json(data);
+});
+
+// ================= News =================
 app.post('/api/news', async (req, res) => {
-    try {
-        const newNews = new News(req.body);
-        await newNews.save();
-        res.status(201).json({ message: "تم إضافة الخبر", news: newNews });
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ أثناء الحفظ" });
-    }
+    const n = new News(req.body);
+    await n.save();
+    res.json(n);
 });
 
 app.get('/api/news', async (req, res) => {
-    try {
-        const news = await News.find().sort({ createdAt: -1 });
-        res.status(200).json(news);
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ" });
-    }
+    const data = await News.find().sort({ createdAt: -1 });
+    res.json(data);
 });
 
 app.delete('/api/news/:id', async (req, res) => {
-    try {
-        await News.findByIdAndDelete(req.params.id);
-        res.status(200).json({ message: "تم حذف الخبر" });
-    } catch (error) {
-        res.status(500).json({ error: "حدث خطأ" });
-    }
+    await News.findByIdAndDelete(req.params.id);
+    res.json({ message: "تم الحذف" });
 });
 
-// ==========================================
-// تشغيل السيرفر
-// ==========================================
+// ================= Start =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 السيرفر يعمل بنجاح على البورت ${PORT}`);
+    console.log(`🚀 Server running on ${PORT}`);
 });
