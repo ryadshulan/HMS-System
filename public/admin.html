@@ -3,246 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم | النجم الحديث HMS</title>
+    <title>لوحة الإدارة | النجم الحديث HMS</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --primary: #2b5c6a; --secondary: #f16736; --bg: #f0f4f7; }
         body { font-family: 'Tajawal', sans-serif; background: var(--bg); margin: 0; display: flex; }
-        
-        /* Sidebar */
-        .sidebar { width: 250px; background: var(--primary); color: white; min-height: 100vh; padding: 20px; position: fixed; }
-        .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .sidebar { width: 250px; background: var(--primary); color: white; min-height: 100vh; position: fixed; padding: 20px; }
+        .sidebar h2 { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; font-size: 1.2rem; }
         .sidebar nav ul { list-style: none; padding: 0; }
-        .sidebar nav li { padding: 15px 10px; cursor: pointer; transition: 0.3s; border-radius: 8px; }
-        .sidebar nav li:hover { background: rgba(255,255,255,0.1); }
-        .sidebar nav li.active { background: var(--secondary); }
-
-        /* Main Content */
-        .main-content { margin-right: 250px; padding: 30px; width: 100%; }
+        .sidebar nav li { padding: 15px; cursor: pointer; transition: 0.3s; border-radius: 8px; margin-bottom: 5px; }
+        .sidebar nav li:hover, .sidebar nav li.active { background: var(--secondary); }
+        .main-content { margin-right: 250px; padding: 30px; width: calc(100% - 250px); }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        
-        .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-        input, select, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
-        
-        button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        input, select { padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-save { background: var(--primary); color: white; }
         .btn-export { background: #27ae60; color: white; }
-        
-        /* Logistics Milestones Styles */
-        .milestone-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
-        .milestone-name { display: flex; align-items: center; gap: 10px; width: 30%; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .milestone-row { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         table th, table td { padding: 12px; border: 1px solid #eee; text-align: right; }
-        table th { background: #f8f9fa; }
-
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; }
-        .status-pending { background: #eee; color: #666; }
-        .status-completed { background: #d4edda; color: #155724; }
+        table th { background: #f8f9fa; color: var(--primary); }
     </style>
 </head>
 <body>
 
     <aside class="sidebar">
-        <h2>النجم الحديث - الإدارة</h2>
+        <h2>النجم الحديث HMS</h2>
         <nav>
             <ul>
                 <li onclick="showSection('tracking')" id="menu-tracking" class="active"><i class="fas fa-truck"></i> تتبع الحاويات</li>
-                <li onclick="showSection('customers')" id="menu-customers"><i class="fas fa-users"></i> قاعدة بيانات العملاء</li>
-                <li onclick="showSection('news')" id="menu-news"><i class="fas fa-newspaper"></i> إدارة الأخبار</li>
+                <li onclick="showSection('customers')" id="menu-customers"><i class="fas fa-users"></i> قاعدة العملاء</li>
+                <li onclick="showSection('news')" id="menu-news"><i class="fas fa-newspaper"></i> الأخبار</li>
             </ul>
         </nav>
     </aside>
 
     <main class="main-content">
-        
         <section id="section-tracking">
             <div class="card">
-                <h3><i class="fas fa-plus-circle"></i> تحديث حالة حاوية</h3>
+                <h3>تحديث حالة حاوية</h3>
                 <div class="grid-form">
-                    <input type="text" id="containerID" placeholder="رقم الحاوية (مثلاً: HMSU-123456)">
+                    <input type="text" id="containerID" placeholder="رقم الحاوية (مثلاً: HMSU-9988)">
                     <button class="btn-save" onclick="saveContainerStatus()">حفظ التحديث</button>
                 </div>
-                
-                <hr>
-                
-                <h4>تحديد مراحل الشحن (Milestones)</h4>
-                <div id="milestones-container">
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-warehouse"></i> 1. مخازن الصين</div>
-                        <select id="m1">
-                            <option value="pending">جاري تجهيز وتحميل الشحنة</option>
-                            <option value="completed">تم التحميل في المستودعات</option>
-                        </select>
-                    </div>
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-ship"></i> 2. ميناء نينغبو</div>
-                        <select id="m2">
-                            <option value="pending">جاري نقل الحاوية للميناء</option>
-                            <option value="completed">وصلت الحاوية (Gate-In)</option>
-                        </select>
-                    </div>
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-anchor"></i> 3. التحميل للباخرة</div>
-                        <select id="m3">
-                            <option value="pending">انتظار التحميل على الباخرة</option>
-                            <option value="completed">تم التحميل ومغادرة السفينة</option>
-                        </select>
-                    </div>
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-globe"></i> 4. وصول عدن</div>
-                        <select id="m4">
-                            <option value="pending">في الطريق إلى ميناء عدن</option>
-                            <option value="completed">وصلت السفينة ميناء عدن</option>
-                        </select>
-                    </div>
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-file-invoice-dollar"></i> 5. التخليص الجمركي</div>
-                        <select id="m5">
-                            <option value="pending">بدء إجراءات التخليص</option>
-                            <option value="completed">تم الإفراج الجمركي</option>
-                        </select>
-                    </div>
-                    <div class="milestone-row">
-                        <div class="milestone-name"><i class="fas fa-check-double"></i> 6. مستودع عدن</div>
-                        <select id="m6">
-                            <option value="pending">جاري النقل للمستودع النهائي</option>
-                            <option value="completed">تم الاستلام في مستودعات عدن</option>
-                        </select>
-                    </div>
+                <div id="milestones-inputs">
+                    <div class="milestone-row"><span>1. مخازن الصين</span><select id="m1"><option value="pending">جاري التجهيز</option><option value="completed">تم التحميل</option></select></div>
+                    <div class="milestone-row"><span>2. ميناء نينغبو</span><select id="m2"><option value="pending">جاري النقل للميناء</option><option value="completed">وصلت الميناء</option></select></div>
+                    <div class="milestone-row"><span>3. التحميل للباخرة</span><select id="m3"><option value="pending">انتظار التحميل</option><option value="completed">غادرت السفينة</option></select></div>
+                    <div class="milestone-row"><span>4. وصول عدن</span><select id="m4"><option value="pending">في الطريق</option><option value="completed">وصلت عدن</option></select></div>
+                    <div class="milestone-row"><span>5. التخليص الجمركي</span><select id="m5"><option value="pending">بدء التخليص</option><option value="completed">تم الإفراج</option></select></div>
+                    <div class="milestone-row"><span>6. مستودع عدن</span><select id="m6"><option value="pending">جاري النقل</option><option value="completed">تم الاستلام</option></select></div>
                 </div>
             </div>
         </section>
 
         <section id="section-customers" style="display:none;">
             <div class="card">
-                <h3><i class="fas fa-user-plus"></i> إضافة عميل جديد</h3>
+                <h3>إضافة عميل</h3>
                 <div class="grid-form">
                     <input type="text" id="custName" placeholder="اسم العميل">
                     <input type="text" id="custPhone" placeholder="رقم الهاتف">
-                    <input type="text" id="custContainer" placeholder="كود الحاوية">
-                    <button class="btn-save" onclick="addCustomer()">إضافة لقاعدة البيانات</button>
+                    <input type="text" id="custContainer" placeholder="رقم الحاوية">
+                    <button class="btn-save" onclick="addCustomer()">إضافة</button>
                 </div>
             </div>
-
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display:flex; justify-content:space-between;">
                     <h3>قائمة العملاء</h3>
-                    <button class="btn-export" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> تصدير CSV</button>
+                    <button class="btn-export" onclick="exportCustomers()"><i class="fas fa-file-excel"></i> تصدير CSV</button>
                 </div>
                 <table id="customerTable">
-                    <thead>
-                        <tr>
-                            <th>الاسم</th>
-                            <th>الهاتف</th>
-                            <th>رقم الحاوية</th>
-                            <th>الإجراءات</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>الاسم</th><th>الهاتف</th><th>الحاوية</th><th>حذف</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
         </section>
-
     </main>
 
     <script>
-        // مصفوفات البيانات (سيتم ربطها لاحقاً بـ API)
-        let customers = JSON.parse(localStorage.getItem('hms_customers')) || [];
-        let shipments = JSON.parse(localStorage.getItem('hms_shipments')) || {};
-
-        function showSection(sectionId) {
+        function showSection(id) {
             document.querySelectorAll('section').forEach(s => s.style.display = 'none');
-            document.querySelectorAll('.sidebar nav li').forEach(l => l.classList.remove('active'));
-            document.getElementById('section-' + sectionId).style.display = 'block';
-            document.getElementById('menu-' + sectionId).classList.add('active');
+            document.querySelectorAll('.sidebar li').forEach(l => l.classList.remove('active'));
+            document.getElementById('section-' + id).style.display = 'block';
+            document.getElementById('menu-' + id).classList.add('active');
+            if(id === 'customers') loadCustomers();
         }
 
-        // إضافة عميل
-        function addCustomer() {
-            const name = document.getElementById('custName').value;
-            const phone = document.getElementById('custPhone').value;
-            const container = document.getElementById('custContainer').value;
-
-            if(name && container) {
-                customers.push({ name, phone, container });
-                localStorage.setItem('hms_customers', JSON.stringify(customers));
-                renderCustomers();
-                alert('تمت إضافة العميل بنجاح');
-            }
-        }
-
-        function renderCustomers() {
-            const tbody = document.querySelector('#customerTable tbody');
-            tbody.innerHTML = '';
-            customers.forEach((c, index) => {
-                tbody.innerHTML += `<tr>
-                    <td>${c.name}</td>
-                    <td>${c.phone}</td>
-                    <td>${c.container}</td>
-                    <td><button onclick="deleteCustomer(${index})" style="color:red;">حذف</button></td>
-                </tr>`;
-            });
-        }
-
-        // حفظ حالة الحاوية وإرسال التنبيه
-        function saveContainerStatus() {
-            const id = document.getElementById('containerID').value;
-            if(!id) return alert('أدخل رقم الحاوية');
-
-            const statusData = {
-                m1: document.getElementById('m1').value,
-                m2: document.getElementById('m2').value,
-                m3: document.getElementById('m3').value,
-                m4: document.getElementById('m4').value,
-                m5: document.getElementById('m5').value,
-                m6: document.getElementById('m6').value,
+        async function saveContainerStatus() {
+            const trackingNumber = document.getElementById('containerID').value;
+            if(!trackingNumber) return alert("أدخل رقم الحاوية");
+            const milestones = {
+                m1: document.getElementById('m1').value, m2: document.getElementById('m2').value,
+                m3: document.getElementById('m3').value, m4: document.getElementById('m4').value,
+                m5: document.getElementById('m5').value, m6: document.getElementById('m6').value
             };
-
-            shipments[id] = statusData;
-            localStorage.setItem('hms_shipments', JSON.stringify(shipments));
-
-            // التحقق من وصول المرحلة الأخيرة
-            if(statusData.m6 === 'completed') {
-                notifyCustomers(id);
-            }
-
-            alert('تم تحديث حالة الحاوية بنجاح');
-        }
-
-        function notifyCustomers(containerId) {
-            const relatedCustomers = customers.filter(c => c.container === containerId);
-            if(relatedCustomers.length > 0) {
-                console.log(`إرسال رسائل لـ ${relatedCustomers.length} عملاء للحاوية ${containerId}`);
-                alert(`إشعار: تم وصول الحاوية ${containerId}. سيتم الآن محاكاة إرسال رسائل لـ: ` + relatedCustomers.map(c => c.name).join(', '));
-            }
-        }
-
-        // تصدير CSV (متوافق مع Excel)
-        function exportToExcel() {
-            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            csvContent += "الاسم,رقم الهاتف,رقم الحاوية\n";
-            
-            customers.forEach(c => {
-                csvContent += `${c.name},${c.phone},${c.container}\n`;
+            const res = await fetch('/api/shipment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ trackingNumber, milestones })
             });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `عملاء_النجم_الحديث_${new Date().toLocaleDateString()}.csv`);
-            document.body.appendChild(link);
-            link.click();
+            if(res.ok) alert("تم تحديث حالة الحاوية");
         }
 
-        function deleteCustomer(index) {
-            customers.splice(index, 1);
-            localStorage.setItem('hms_customers', JSON.stringify(customers));
-            renderCustomers();
+        async function addCustomer() {
+            const data = {
+                name: document.getElementById('custName').value,
+                phone: document.getElementById('custPhone').value,
+                containerId: document.getElementById('custContainer').value
+            };
+            await fetch('/api/customers', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            loadCustomers();
         }
 
-        window.onload = renderCustomers;
+        async function loadCustomers() {
+            const res = await fetch('/api/customers');
+            const data = await res.json();
+            const tbody = document.querySelector('#customerTable tbody');
+            tbody.innerHTML = data.map(c => `
+                <tr><td>${c.name}</td><td>${c.phone}</td><td>${c.containerId}</td>
+                <td><button onclick="deleteCustomer('${c._id}')" style="color:red">حذف</button></td></tr>
+            `).join('');
+        }
+
+        async function deleteCustomer(id) {
+            await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+            loadCustomers();
+        }
+
+        function exportCustomers() {
+            window.open('/api/customers/export', '_blank'); // سنحتاج لإضافة هذا المسار في السيرفر أو عمله فرونت-إند
+        }
     </script>
 </body>
 </html>
