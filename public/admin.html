@@ -7,138 +7,216 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary: #2b5c6a; --secondary: #f16736; --bg: #f4f8fb; }
+        :root { --primary: #2b5c6a; --secondary: #f16736; --bg: #f4f8fb; --success: #27ae60; }
         body { font-family: 'Tajawal', sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
-        .admin-container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
-        h1 { color: var(--primary); text-align: center; }
+        .admin-container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        h1 { color: var(--primary); text-align: center; margin-bottom: 30px; }
         
-        .form-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; background: #f9f9f9; padding: 20px; border-radius: 10px; }
-        input, select, button { padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; }
-        .full-width { grid-column: span 2; }
+        /* تصميم النموذج */
+        .form-section { background: #f9f9f9; padding: 25px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 30px; }
+        .grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        input, select, button { padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 14px; }
         
-        .milestone-setter { grid-column: span 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #fff; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
-        .milestone-setter label { font-size: 0.9rem; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .milestone-container { grid-column: 1 / -1; margin-top: 20px; background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd; }
+        .milestone-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+        .milestone-grid label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--primary); font-weight: bold; }
+        
+        .action-buttons { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 20px; }
+        .btn { flex: 1; font-weight: bold; cursor: pointer; border: none; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; color: white; }
+        .btn-add { background: var(--primary); }
+        .btn-add:hover { background: #1e434d; }
+        .btn-csv { background: var(--success); }
+        .btn-csv:hover { background: #219150; }
 
-        button.save-btn { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button.save-btn:hover { background: #1e434d; }
-
-        .shipment-list { margin-top: 40px; border-collapse: collapse; width: 100%; }
-        .shipment-list th, .shipment-list td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
-        .shipment-list th { background: var(--primary); color: white; }
+        /* الجدول */
+        .table-wrapper { overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; text-align: right; }
+        th, td { padding: 15px; border-bottom: 1px solid #eee; }
+        th { background: var(--primary); color: white; }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; background: #e0f2f1; color: var(--primary); font-weight: bold; }
+        .btn-delete { color: #e74c3c; cursor: pointer; border: none; background: none; font-size: 18px; }
         
-        .status-badge { padding: 4px 8px; border-radius: 50px; font-size: 0.8rem; background: #eee; }
-        .delete-btn { color: #e74c3c; cursor: pointer; border: none; background: none; }
+        /* إخفاء مدخل الملف */
+        #csvInput { display: none; }
     </style>
 </head>
 <body>
 
 <div class="admin-container">
-    <h1><i class="fas fa-tasks"></i> إدارة الشحنات والمراحل</h1>
+    <h1><i class="fas fa-user-shield"></i> لوحة إدارة الشحنات والعملاء</h1>
 
-    <div class="form-group">
-        <input type="text" id="trackId" placeholder="رقم الشحنة (مثال: HMSU-101)" class="full-width">
-        <input type="text" id="currentLocation" placeholder="الموقع الحالي (مثال: ميناء نينغبو)">
-        <select id="generalStatus">
-            <option value="في الانتظار">في الانتظار</option>
-            <option value="قيد الشحن">قيد الشحن</option>
-            <option value="وصلت">وصلت</option>
-        </select>
-        
-        <div class="milestone-setter">
-            <strong class="full-width">تحديد المراحل المكتملة:</strong>
-            <label><input type="checkbox" id="m1"> مخازن الصين</label>
-            <label><input type="checkbox" id="m2"> ميناء نينغبو</label>
-            <label><input type="checkbox" id="m3"> التحميل للباخرة</label>
-            <label><input type="checkbox" id="m4"> وصول عدن</label>
-            <label><input type="checkbox" id="m5"> التخليص الجمركي</label>
-            <label><input type="checkbox" id="m6"> مستودع عدن</label>
+    <div class="form-section">
+        <div class="grid-inputs">
+            <input type="text" id="trackId" placeholder="رقم الشحنة أو العميل (مثل: HMSU-101)">
+            <input type="text" id="currentLocation" placeholder="الموقع الحالي">
+            <select id="generalStatus">
+                <option value="في الانتظار">في الانتظار</option>
+                <option value="قيد الشحن">قيد الشحن</option>
+                <option value="وصلت">وصلت</option>
+                <option value="تم التسليم">تم التسليم</option>
+            </select>
+            
+            <div class="milestone-container">
+                <i class="fas fa-map-signs"></i> <strong>تحديث مراحل التتبع:</strong>
+                <div class="milestone-grid">
+                    <label><input type="checkbox" class="milestone-check" value="m1"> مخازن الصين</label>
+                    <label><input type="checkbox" class="milestone-check" value="m2"> ميناء نينغبو</label>
+                    <label><input type="checkbox" class="milestone-check" value="m3"> التحميل للباخرة</label>
+                    <label><input type="checkbox" class="milestone-check" value="m4"> وصول عدن</label>
+                    <label><input type="checkbox" class="milestone-check" value="m5"> التخليص الجمركي</label>
+                    <label><input type="checkbox" class="milestone-check" value="m6"> مستودع عدن</label>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-add" onclick="saveCustomer()">
+                    <i class="fas fa-user-plus"></i> إضافة / تحديث عميل
+                </button>
+                <button class="btn btn-csv" onclick="document.getElementById('csvInput').click()">
+                    <i class="fas fa-file-import"></i> استيراد من CSV
+                </button>
+                <input type="file" id="csvInput" accept=".csv" onchange="handleCSV(event)">
+            </div>
         </div>
-
-        <button onclick="saveShipment()" class="save-btn full-width">حفظ الشحنة وتحديث المراحل</button>
     </div>
 
-    <hr>
-
-    <table class="shipment-list">
-        <thead>
-            <tr>
-                <th>رقم الشحنة</th>
-                <th>الموقع</th>
-                <th>المراحل المكتملة</th>
-                <th>إجراءات</th>
-            </tr>
-        </thead>
-        <tbody id="shipmentsTable">
-            </tbody>
-    </table>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>رقم التتبع</th>
+                    <th>الموقع</th>
+                    <th>الحالة العامة</th>
+                    <th>المراحل المكتملة</th>
+                    <th>الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody id="shipmentsTable">
+                </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
     const API_URL = '/api/shipment';
 
-    // 1. حفظ الشحنة
-    async function saveShipment() {
-        const data = {
-            trackingNumber: document.getElementById('trackId').value,
-            location: document.getElementById('currentLocation').value,
-            status: document.getElementById('generalStatus').value,
-            milestones: {
-                m1: document.getElementById('m1').checked ? 'completed' : 'pending',
-                m2: document.getElementById('m2').checked ? 'completed' : 'pending',
-                m3: document.getElementById('m3').checked ? 'completed' : 'pending',
-                m4: document.getElementById('m4').checked ? 'completed' : 'pending',
-                m5: document.getElementById('m5').checked ? 'completed' : 'pending',
-                m6: document.getElementById('m6').checked ? 'completed' : 'pending'
-            }
+    // 1. دالة حفظ العميل/الشحنة (إصلاح زر الإضافة)
+    async function saveCustomer() {
+        const trackId = document.getElementById('trackId').value.trim();
+        const location = document.getElementById('currentLocation').value.trim();
+        const status = document.getElementById('generalStatus').value;
+
+        if (!trackId) return alert('يرجى إدخال رقم التتبع');
+
+        // تجميع مراحل التتبع
+        const milestones = {};
+        document.querySelectorAll('.milestone-check').forEach(check => {
+            milestones[check.value] = check.checked ? 'completed' : 'pending';
+        });
+
+        const payload = {
+            trackingNumber: trackId,
+            location: location,
+            status: status,
+            milestones: milestones
         };
 
-        if(!data.trackingNumber) return alert('أدخل رقم الشحنة');
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if(response.ok) {
-            alert('تم الحفظ بنجاح');
-            location.reload();
+            if (res.ok) {
+                alert('تم الحفظ بنجاح');
+                clearForm();
+                loadData();
+            } else {
+                alert('خطأ في الحفظ');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('فشل الاتصال بالسيرفر');
         }
     }
 
-    // 2. جلب الشحنات وعرضها
-    async function loadShipments() {
-        const response = await fetch('/api/shipments');
-        const shipments = await response.json();
-        const table = document.getElementById('shipmentsTable');
-        table.innerHTML = '';
+    // 2. دالة استيراد CSV (إصلاح زر الاستيراد)
+    async function handleCSV(event) {
+        const file = event.target.files[0];
+        if (!file) return;
 
-        shipments.forEach(s => {
-            // حساب عدد المراحل المكتملة
-            const completedCount = Object.values(s.milestones || {}).filter(v => v === 'completed').length;
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const text = e.target.result;
+            const lines = text.split('\n');
             
-            table.innerHTML += `
-                <tr>
-                    <td><strong>${s.id}</strong></td>
-                    <td>${s.location || 'غير محدد'}</td>
-                    <td><span class="status-badge">${completedCount} / 6 مراحل</span></td>
-                    <td>
-                        <button onclick="deleteShipment('${s.id}')" class="delete-btn"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `;
-        });
+            // البدء من السطر الثاني لتجاوز العناوين
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length >= 3 && cols[0].trim() !== "") {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            trackingNumber: cols[0].trim(),
+                            location: cols[1].trim(),
+                            status: cols[2].trim(),
+                            milestones: { m1: 'pending', m2: 'pending', m3: 'pending', m4: 'pending', m5: 'pending', m6: 'pending' }
+                        })
+                    });
+                }
+            }
+            alert('تم استيراد البيانات بنجاح');
+            loadData();
+        };
+        reader.readAsText(file);
     }
 
-    // 3. حذف شحنة
-    async function deleteShipment(id) {
-        if(confirm('هل أنت متأكد من الحذف؟')) {
-            await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-            loadShipments();
+    // 3. جلب وعرض البيانات
+    async function loadData() {
+        try {
+            const res = await fetch('/api/shipments');
+            const data = await res.json();
+            const table = document.getElementById('shipmentsTable');
+            table.innerHTML = '';
+
+            data.forEach(item => {
+                const completedSteps = Object.values(item.milestones || {}).filter(v => v === 'completed').length;
+                table.innerHTML += `
+                    <tr>
+                        <td><strong>${item.id}</strong></td>
+                        <td>${item.location || '-'}</td>
+                        <td>${item.status || '-'}</td>
+                        <td><span class="status-badge">${completedSteps} / 6 مراحل</span></td>
+                        <td>
+                            <button class="btn-delete" onclick="deleteItem('${item.id}')">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (err) {
+            console.error('Error loading data:', err);
         }
     }
 
-    window.onload = loadShipments;
+    // 4. حذف عنصر
+    async function deleteItem(id) {
+        if (!confirm('هل أنت متأكد من حذف هذه البيانات؟')) return;
+        await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+        loadData();
+    }
+
+    // دالة مسح الحقول بعد الحفظ
+    function clearForm() {
+        document.getElementById('trackId').value = '';
+        document.getElementById('currentLocation').value = '';
+        document.querySelectorAll('.milestone-check').forEach(c => c.checked = false);
+    }
+
+    window.onload = loadData;
 </script>
 
 </body>
