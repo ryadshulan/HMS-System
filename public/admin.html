@@ -2,90 +2,506 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>إدارة النجم الحديث</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم | النجم الحديث</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary: #2b5c6a; --secondary: #f16736; }
-        body { font-family: 'Tajawal', sans-serif; margin: 0; display: flex; background: #f0f4f7; }
-        .sidebar { width: 220px; background: var(--primary); color: white; min-height: 100vh; padding: 20px; position: fixed; }
-        .sidebar li { list-style: none; padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; }
-        .sidebar li:hover, .active { background: var(--secondary); }
-        .main { margin-right: 260px; padding: 20px; width: 100%; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input, select { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 5px; width: 200px; }
-        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 5px; background: var(--primary); color: white; }
-        .milestone-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; align-items: center; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
+        :root {
+            --primary-color: #2b5c6a;
+            --secondary-color: #f16736;
+            --bg-color: #f4f8fb;
+            --sidebar-bg: #1a3c46;
+            --text-dark: #333;
+            --text-light: #fff;
+            --border-color: #ddd;
+        }
+        
+        body { 
+            font-family: 'Tajawal', sans-serif; 
+            background: var(--bg-color); 
+            margin: 0; 
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* شاشة الدخول */
+        #login-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(43, 92, 106, 0.15);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        #login-container img { max-width: 150px; margin-bottom: 20px; }
+
+        /* لوحة التحكم */
+        #dashboard-container {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: row;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo { padding: 20px; background: #fff; text-align: center; border-bottom: 3px solid var(--secondary-color); }
+        .sidebar-logo img { max-width: 120px; }
+
+        .sidebar-menu { list-style: none; padding: 0; margin: 0; flex: 1; }
+        .sidebar-menu a {
+            display: flex; align-items: center; padding: 15px 20px; color: #ccc;
+            text-decoration: none; transition: 0.3s; cursor: pointer;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background: var(--primary-color); color: #fff; border-right: 4px solid var(--secondary-color); }
+        .sidebar-menu i { margin-left: 10px; width: 20px; }
+
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+
+        .form-group { margin-bottom: 15px; text-align: right; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-primary { background: var(--primary-color); color: #fff; }
+        .btn-success { background: #27ae60; color: #fff; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-edit { background: #ffc107; color: #333; margin-left: 5px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: var(--primary-color); }
+
+        .image-preview { max-width: 100%; height: 150px; object-fit: cover; margin-top: 10px; border-radius: 6px; display: none; }
+        
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+
+        /* تنسيق مراحل الشحن الجديد */
+        .milestones-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .milestone-item { display: flex; flex-direction: column; gap: 5px; }
+        .milestone-item label { font-size: 0.85rem; color: var(--primary-color); }
+
+        .dashboard-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .dash-news-card { border: 1px solid #eee; border-radius: 8px; overflow: hidden; text-align: center; }
+        .dash-news-card img { width: 100%; height: 120px; object-fit: cover; }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h3>النجم الحديث HMS</h3>
-        <li onclick="show('tracking')" id="btn-tracking" class="active">التتبع</li>
-        <li onclick="show('customers')" id="btn-customers">العملاء</li>
+
+    <div id="login-container">
+       <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
+        <h2>دخول الإدارة</h2>
+        <div id="login-error" style="color:red; display:none; margin-bottom:10px;">خطأ في البيانات!</div>
+        <div class="form-group">
+            <input type="text" id="loginUser" placeholder="اسم المستخدم">
+        </div>
+        <div class="form-group">
+            <input type="password" id="loginPass" placeholder="كلمة المرور">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="verifyLogin()">دخول</button>
     </div>
 
-    <div class="main">
-        <section id="tracking">
-            <div class="card">
-                <h3>تحديث حالة حاوية</h3>
-                <input type="text" id="containerID" placeholder="رقم الحاوية">
-                <button onclick="saveShipment()">حفظ التحديث</button>
-                <hr>
-                <div id="m-list">
-                    <div class="milestone-row"><span>1. مخازن الصين</span><select id="m1"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                    <div class="milestone-row"><span>2. ميناء نينغبو</span><select id="m2"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                    <div class="milestone-row"><span>3. التحميل للباخرة</span><select id="m3"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                    <div class="milestone-row"><span>4. وصول عدن</span><select id="m4"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                    <div class="milestone-row"><span>5. التخليص الجمركي</span><select id="m5"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                    <div class="milestone-row"><span>6. مستودع عدن</span><select id="m6"><option value="pending">جاري</option><option value="completed">تم</option></select></div>
-                </div>
+    <div id="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <img src="uploads/شعار النجم الحديث.jpg" alt="Logo">
             </div>
-        </section>
+            <ul class="sidebar-menu">
+                <li><a onclick="switchTab('dashboard')" id="tab-dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
+                <li><a onclick="switchTab('shipments')" id="tab-shipments"><i class="fas fa-box"></i> الشحنات</a></li>
+                <li><a onclick="switchTab('customers')" id="tab-customers"><i class="fas fa-users"></i> العملاء</a></li>
+                <li><a onclick="switchTab('news')" id="tab-news"><i class="fas fa-newspaper"></i> الأخبار</a></li>
+                <li><a onclick="switchTab('logs')" id="tab-logs"><i class="fas fa-history"></i> السجل</a></li>
+                <li style="margin-top:auto"><a onclick="logout()" style="color:#ff7675"><i class="fas fa-sign-out-alt"></i> خروج</a></li>
+            </ul>
+        </aside>
 
-        <section id="customers" style="display:none">
-            <div class="card">
-                <h3>إضافة عميل</h3>
-                <input type="text" id="cName" placeholder="الاسم">
-                <input type="text" id="cPhone" placeholder="الهاتف">
-                <input type="text" id="cID" placeholder="الحاوية">
-                <button onclick="addCustomer()">إضافة</button>
-            </div>
-            <div class="card">
-                <button onclick="window.open('/api/customers/export')" style="background:#27ae60">تصدير CSV</button>
-                <table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الحاوية</th></tr></thead><tbody id="cTable"></tbody></table>
-            </div>
-        </section>
+        <main class="main-content">
+            <section id="dashboard-section" class="content-section active">
+                <div class="card">
+                    <h2>نظرة عامة</h2>
+                    <div class="dashboard-news-grid" id="dashboardNewsContainer"></div>
+                </div>
+            </section>
+
+            <section id="shipments-section" class="content-section">
+                <div class="card">
+                    <h2 id="shipmentFormTitle">إدارة تتبع المراحل (الحاويات)</h2>
+                    <div class="form-group">
+                        <label>رقم الحاوية / التتبع:</label>
+                        <input type="text" id="trackId" placeholder="مثلاً: HMSU-123456">
+                    </div>
+                    
+                    <label style="margin-bottom: 15px; display: block;">تحديث مراحل الشحن الست:</label>
+                    <div class="milestones-grid">
+                        <div class="milestone-item">
+                            <label>1. مخازن الصين</label>
+                            <select id="m1"><option value="pending">جاري التجهيز</option><option value="completed">تم التحميل</option></select>
+                        </div>
+                        <div class="milestone-item">
+                            <label>2. ميناء نينغبو</label>
+                            <select id="m2"><option value="pending">جاري النقل</option><option value="completed">وصلت الميناء</option></select>
+                        </div>
+                        <div class="milestone-item">
+                            <label>3. التحميل للباخرة</label>
+                            <select id="m3"><option value="pending">بانتظار السفينة</option><option value="completed">غادرت السفينة</option></select>
+                        </div>
+                        <div class="milestone-item">
+                            <label>4. وصول عدن</label>
+                            <select id="m4"><option value="pending">في البحر</option><option value="completed">وصلت الميناء</option></select>
+                        </div>
+                        <div class="milestone-item">
+                            <label>5. التخليص الجمركي</label>
+                            <select id="m5"><option value="pending">جاري التخليص</option><option value="completed">تم الإفراج</option></select>
+                        </div>
+                        <div class="milestone-item">
+                            <label>6. مستودع عدن</label>
+                            <select id="m6"><option value="pending">جاري النقل</option><option value="completed">تم الاستلام</option></select>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" onclick="saveShipment()">حفظ الحالة</button>
+                        <button id="cancelShipmentBtn" class="btn" style="display:none" onclick="resetShipmentForm()">إلغاء</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <table>
+                        <thead><tr><th>رقم الحاوية</th><th>آخر تحديث</th><th>إجراء</th></tr></thead>
+                        <tbody id="shipmentsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="customers-section" class="content-section">
+                <div class="card">
+                    <h2>إضافة عميل للقاعدة</h2>
+                    <div class="form-group">
+                        <input type="text" id="custName" placeholder="اسم العميل">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="custPhone" placeholder="رقم الهاتف">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="custContainer" placeholder="رقم الحاوية المرتبطة">
+                    </div>
+                    <button class="btn btn-success" onclick="addCustomer()">إضافة عميل</button>
+                    <button class="btn" style="background:#27ae60; color:white;" onclick="exportCustomers()">تصدير CSV</button>
+                </div>
+                <div class="card">
+                    <table id="customerTable">
+                        <thead><tr><th>الاسم</th><th>الهاتف</th><th>رقم الحاوية</th><th>إجراء</th></tr></thead>
+                        <tbody id="customerTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="news-section" class="content-section">
+                <div class="card">
+                    <h2 id="newsFormTitle">إضافة خبر</h2>
+                    <input type="hidden" id="newsEditId">
+                    <div class="form-group">
+                        <label>العنوان:</label>
+                        <input type="text" id="newsTitle">
+                    </div>
+                    <div class="form-group">
+                        <label>التاريخ:</label>
+                        <input type="date" id="newsDate">
+                    </div>
+                    <div class="form-group">
+                        <label>التفاصيل:</label>
+                        <textarea id="newsDesc"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>الصورة:</label>
+                        <input type="file" id="newsImage" accept="image/*" onchange="previewImage(event)">
+                        <img id="imagePreview" class="image-preview">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveNews()">حفظ الخبر</button>
+                    <button id="cancelNewsBtn" class="btn" style="display:none" onclick="resetNewsForm()">إلغاء</button>
+                </div>
+                <div class="card">
+                    <table id="newsTable">
+                        <thead><tr><th>الصورة</th><th>العنوان</th><th>التاريخ</th><th>إجراء</th></tr></thead>
+                        <tbody id="newsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="logs-section" class="content-section">
+                <div class="card">
+                    <h2>السجل الرقابي</h2>
+                    <table>
+                        <thead><tr><th>الوقت</th><th>العملية</th><th>القسم</th><th>التفاصيل</th></tr></thead>
+                        <tbody id="logsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
     </div>
 
     <script>
-        function show(id) {
-            document.getElementById('tracking').style.display = id === 'tracking' ? 'block' : 'none';
-            document.getElementById('customers').style.display = id === 'customers' ? 'block' : 'none';
-            document.getElementById('btn-tracking').classList.toggle('active', id === 'tracking');
-            document.getElementById('btn-customers').classList.toggle('active', id === 'customers');
-            if(id === 'customers') loadCustomers();
+        const SECURE_USER = "YWRtaW4="; // admin
+        const SECURE_PASS = "YWRtaW4xMjM="; // admin123
+
+        function verifyLogin() {
+            const u = document.getElementById('loginUser').value;
+            const p = document.getElementById('loginPass').value;
+            if (btoa(u) === SECURE_USER && btoa(p) === SECURE_PASS) {
+                sessionStorage.setItem('hms_auth', 'true');
+                showDashboard();
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('dashboard-container').style.display = 'flex';
+            document.body.style.display = 'block';
+            initDashboard();
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            location.reload();
+        }
+
+        window.onload = () => {
+            if(sessionStorage.getItem('hms_auth') === 'true') showDashboard();
+        };
+
+        let shipments = [];
+        let newsList = [];
+        let customers = [];
+        let logs = JSON.parse(localStorage.getItem('hms_logs')) || [];
+
+        async function initDashboard() {
+            await fetchShipments();
+            await fetchNews();
+            await fetchCustomers();
+            renderLogs();
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
+            document.getElementById(id + '-section').classList.add('active');
+            document.getElementById('tab-' + id).classList.add('active');
+        }
+
+        // --- الشحنات (المراحل الست) ---
+        async function fetchShipments() {
+            try {
+                const res = await fetch('/api/shipments');
+                shipments = await res.json();
+                renderShipments();
+            } catch(e) { console.error(e); }
+        }
+
+        function renderShipments() {
+            const tbody = document.getElementById('shipmentsTableBody');
+            tbody.innerHTML = '';
+            shipments.forEach(s => {
+                tbody.innerHTML += `<tr>
+                    <td>${s.id}</td><td>${new Date(s.updatedAt).toLocaleString('ar-EG')}</td>
+                    <td>
+                        <button class="btn btn-edit" onclick="editShipment('${s.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger" onclick="deleteShipment('${s.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
         }
 
         async function saveShipment() {
-            const trackingNumber = document.getElementById('containerID').value;
-            const milestones = { m1: document.getElementById('m1').value, m2: document.getElementById('m2').value, m3: document.getElementById('m3').value, m4: document.getElementById('m4').value, m5: document.getElementById('m5').value, m6: document.getElementById('m6').value };
-            await fetch('/api/shipment', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({trackingNumber, milestones})});
-            alert('تم الحفظ');
+            const trackingNumber = document.getElementById('trackId').value;
+            if(!trackingNumber) return alert("ادخل رقم الحاوية");
+
+            const milestones = {
+                m1: document.getElementById('m1').value,
+                m2: document.getElementById('m2').value,
+                m3: document.getElementById('m3').value,
+                m4: document.getElementById('m4').value,
+                m5: document.getElementById('m5').value,
+                m6: document.getElementById('m6').value
+            };
+
+            await fetch('/api/shipment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({trackingNumber, milestones})
+            });
+            addLog('تحديث مراحل', 'الشحنات', `حاوية: ${trackingNumber}`);
+            resetShipmentForm();
+            fetchShipments();
+        }
+
+        function editShipment(id) {
+            const s = shipments.find(x => x.id === id);
+            document.getElementById('trackId').value = s.id;
+            // تعبئة المربعات بالقيم المخزنة
+            if(s.milestones) {
+                for(let i=1; i<=6; i++) {
+                    document.getElementById('m'+i).value = s.milestones['m'+i] || 'pending';
+                }
+            }
+            document.getElementById('shipmentFormTitle').innerText = "تعديل حالة حاوية";
+            document.getElementById('cancelShipmentBtn').style.display = "inline-block";
+        }
+
+        function resetShipmentForm() {
+            document.getElementById('trackId').value = "";
+            for(let i=1; i<=6; i++) document.getElementById('m'+i).value = "pending";
+            document.getElementById('shipmentFormTitle').innerText = "إدارة تتبع المراحل (الحاويات)";
+            document.getElementById('cancelShipmentBtn').style.display = "none";
+        }
+
+        async function deleteShipment(id) {
+            if(!confirm("حذف الحاوية؟")) return;
+            await fetch(`/api/shipment/${id}`, {method: 'DELETE'});
+            addLog('حذف حاوية', 'الشحنات', `رقم: ${id}`);
+            fetchShipments();
+        }
+
+        // --- العملاء ---
+        async function fetchCustomers() {
+            const res = await fetch('/api/customers');
+            customers = await res.json();
+            const tbody = document.getElementById('customerTableBody');
+            tbody.innerHTML = customers.map(c => `
+                <tr><td>${c.name}</td><td>${c.phone}</td><td>${c.containerId}</td>
+                <td><button class="btn btn-danger" onclick="deleteCustomer('${c._id}')">حذف</button></td></tr>
+            `).join('');
         }
 
         async function addCustomer() {
-            const data = { name: document.getElementById('cName').value, phone: document.getElementById('cPhone').value, containerId: document.getElementById('cID').value };
-            await fetch('/api/customers', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
-            loadCustomers();
+            const data = {
+                name: document.getElementById('custName').value,
+                phone: document.getElementById('custPhone').value,
+                containerId: document.getElementById('custContainer').value
+            };
+            await fetch('/api/customers', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            addLog('إضافة عميل', 'العملاء', data.name);
+            fetchCustomers();
         }
 
-        async function loadCustomers() {
-            const res = await fetch('/api/customers');
-            const data = await res.json();
-            document.getElementById('cTable').innerHTML = data.map(c => `<tr><td>${c.name}</td><td>${c.phone}</td><td>${c.containerId}</td></tr>`).join('');
+        async function deleteCustomer(id) {
+            await fetch(`/api/customers/${id}`, {method: 'DELETE'});
+            fetchCustomers();
+        }
+
+        function exportCustomers() { window.open('/api/customers/export', '_blank'); }
+
+        // --- الأخبار ---
+        async function fetchNews() {
+            try {
+                const res = await fetch('/api/news');
+                newsList = await res.json();
+                renderNews();
+                renderDashboardNews();
+            } catch(e) { console.error(e); }
+        }
+
+        let currentImageBase64 = "";
+        function previewImage(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (el) => {
+                currentImageBase64 = el.target.result;
+                document.getElementById('imagePreview').src = currentImageBase64;
+                document.getElementById('imagePreview').style.display = "block";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function saveNews() {
+            const title = document.getElementById('newsTitle').value;
+            const date = document.getElementById('newsDate').value;
+            const desc = document.getElementById('newsDesc').value;
+            const editId = document.getElementById('newsEditId').value;
+            if(!title) return alert("ادخل العنوان");
+            const payload = { title, date, desc, image: currentImageBase64 };
+            if(editId) await fetch(`/api/news/${editId}`, {method: 'DELETE'});
+            await fetch('/api/news', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            addLog(editId ? 'تعديل' : 'إضافة', 'الأخبار', title);
+            resetNewsForm();
+            fetchNews();
+        }
+
+        async function deleteNews(id) {
+            if(!confirm("حذف الخبر؟")) return;
+            await fetch(`/api/news/${id}`, {method: 'DELETE'});
+            fetchNews();
+        }
+
+        function editNews(id) {
+            const n = newsList.find(x => x._id === id);
+            document.getElementById('newsTitle').value = n.title;
+            document.getElementById('newsDate').value = n.date;
+            document.getElementById('newsDesc').value = n.desc;
+            document.getElementById('newsEditId').value = n._id;
+            currentImageBase64 = n.image;
+            document.getElementById('imagePreview').src = n.image;
+            document.getElementById('imagePreview').style.display = "block";
+            document.getElementById('cancelNewsBtn').style.display = "inline-block";
+        }
+
+        function resetNewsForm() {
+            document.getElementById('newsTitle').value = "";
+            document.getElementById('newsEditId').value = "";
+            document.getElementById('imagePreview').style.display = "none";
+            document.getElementById('cancelNewsBtn').style.display = "none";
+        }
+
+        function renderNews() {
+            const tbody = document.getElementById('newsTableBody');
+            tbody.innerHTML = newsList.map(n => `
+                <tr><td><img src="${n.image}" width="50"></td><td>${n.title}</td><td>${n.date}</td>
+                <td><button class="btn btn-edit" onclick="editNews('${n._id}')">تعديل</button>
+                <button class="btn btn-danger" onclick="deleteNews('${n._id}')">حذف</button></td></tr>
+            `).join('');
+        }
+
+        function renderDashboardNews() {
+            const container = document.getElementById('dashboardNewsContainer');
+            container.innerHTML = newsList.slice(0, 3).map(n => `
+                <div class="dash-news-card"><img src="${n.image}"><div style="padding:10px"><h4>${n.title}</h4></div></div>
+            `).join('');
+        }
+
+        function addLog(action, section, details) {
+            const log = { time: new Date().toLocaleString('ar-EG'), action, section, details };
+            logs.unshift(log);
+            localStorage.setItem('hms_logs', JSON.stringify(logs));
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logsTableBody');
+            tbody.innerHTML = logs.map(l => `<tr><td>${l.time}</td><td>${l.action}</td><td>${l.section}</td><td>${l.details}</td></tr>`).join('');
         }
     </script>
 </body>
