@@ -39,7 +39,6 @@
             text-align: center;
             z-index: 100;
         }
-
         #login-container img { max-width: 150px; margin-bottom: 20px; }
 
         /* لوحة التحكم */
@@ -93,17 +92,12 @@
         .dashboard-news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
         .dash-news-card { border: 1px solid #eee; border-radius: 8px; overflow: hidden; text-align: center; }
         .dash-news-card img { width: 100%; height: 120px; object-fit: cover; }
-        
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #fff; }
-        .badge-add { background: #28a745; }
-        .badge-edit { background: #ffc107; color: #333; }
-        .badge-delete { background: #dc3545; }
     </style>
 </head>
 <body>
 
     <div id="login-container">
-       <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
+        <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
         <h2>دخول الإدارة</h2>
         <div id="login-error" style="color:red; display:none; margin-bottom:10px;">خطأ في البيانات!</div>
         <div class="form-group">
@@ -118,7 +112,7 @@
     <div id="dashboard-container">
         <aside class="sidebar">
             <div class="sidebar-logo">
-                <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
+                <img src="uploads/شعار النجم الحديث.jpg" alt="Logo">
             </div>
             <ul class="sidebar-menu">
                 <li><a onclick="switchTab('dashboard')" id="tab-dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
@@ -177,7 +171,7 @@
                     <input type="hidden" id="receiptEditId">
                     <div class="form-group">
                         <label>رقم السند:</label>
-                        <input type="text" id="receiptNo" placeholder="مثال: 1001">
+                        <input type="text" id="receiptNo">
                     </div>
                     <div class="form-group">
                         <label>التاريخ:</label>
@@ -188,11 +182,11 @@
                         <input type="text" id="receiptName">
                     </div>
                     <div class="form-group">
-                        <label>مبلغ وقدره:</label>
+                        <label>المبلغ:</label>
                         <input type="number" id="receiptAmount">
                     </div>
                     <div class="form-group">
-                        <label>وذلك عن:</label>
+                        <label>البيان (وذلك عن):</label>
                         <input type="text" id="receiptDesc">
                     </div>
                     <button class="btn btn-primary" onclick="saveReceipt()">حفظ السند</button>
@@ -200,11 +194,12 @@
                 </div>
                 <div class="card">
                     <table>
-                        <thead><tr><th>رقم السند</th><th>التاريخ</th><th>الاسم</th><th>المبلغ</th><th>إجراء</th></tr></thead>
+                        <thead><tr><th>رقم السند</th><th>الاسم</th><th>المبلغ</th><th>التاريخ</th><th>إجراء</th></tr></thead>
                         <tbody id="receiptsTableBody"></tbody>
                     </table>
                 </div>
             </section>
+
             <section id="news-section" class="content-section">
                 <div class="card">
                     <h2 id="newsFormTitle">إضافة خبر</h2>
@@ -230,7 +225,7 @@
                     <button id="cancelNewsBtn" class="btn" style="display:none" onclick="resetNewsForm()">إلغاء</button>
                 </div>
                 <div class="card">
-                    <table id="newsTable">
+                    <table>
                         <thead><tr><th>الصورة</th><th>العنوان</th><th>التاريخ</th><th>إجراء</th></tr></thead>
                         <tbody id="newsTableBody"></tbody>
                     </table>
@@ -252,6 +247,11 @@
     <script>
         const SECURE_USER = "YWRtaW4="; // admin
         const SECURE_PASS = "YWRtaW4xMjM="; // admin123
+
+        let shipments = [];
+        let newsList = [];
+        let receipts = [];
+        let logs = JSON.parse(localStorage.getItem('hms_logs')) || [];
 
         function verifyLogin() {
             const u = document.getElementById('loginUser').value;
@@ -280,15 +280,10 @@
             if(sessionStorage.getItem('hms_auth') === 'true') showDashboard();
         };
 
-        let shipments = [];
-        let newsList = [];
-        let receipts = []; // مصفوفة السندات المضافة
-        let logs = JSON.parse(localStorage.getItem('hms_logs')) || [];
-
         async function initDashboard() {
             await fetchShipments();
             await fetchNews();
-            await fetchReceipts(); // استدعاء دالة جلب السندات
+            await fetchReceipts();
             renderLogs();
         }
 
@@ -299,7 +294,7 @@
             document.getElementById('tab-' + id).classList.add('active');
         }
 
-        // الشحنات
+        // --- الشحنات ---
         async function fetchShipments() {
             try {
                 const res = await fetch('/api/shipments');
@@ -327,7 +322,6 @@
             const status = document.getElementById('trackStatus').value;
             const location = document.getElementById('trackLocation').value;
             if(!trackingNumber) return alert("ادخل الرقم");
-
             await fetch('/api/shipment', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -361,7 +355,7 @@
             document.getElementById('cancelShipmentBtn').style.display = "none";
         }
 
-        // ================= بداية دوال سندات القبض =================
+        // --- سندات القبض ---
         async function fetchReceipts() {
             try {
                 const res = await fetch('/api/receipts');
@@ -374,9 +368,9 @@
             const tbody = document.getElementById('receiptsTableBody');
             tbody.innerHTML = '';
             receipts.forEach(r => {
-                const id = r._id || r.id; // التوافق مع نوع الـ ID
+                const id = r._id || r.id;
                 tbody.innerHTML += `<tr>
-                    <td>${r.receiptNo}</td><td>${r.date}</td><td>${r.name}</td><td>${r.amount}</td>
+                    <td>${r.receiptNo}</td><td>${r.name}</td><td>${r.amount}</td><td>${r.date}</td>
                     <td>
                         <button class="btn btn-edit" onclick="editReceipt('${id}')"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-danger" onclick="deleteReceipt('${id}')"><i class="fas fa-trash"></i></button>
@@ -393,29 +387,25 @@
             const desc = document.getElementById('receiptDesc').value;
             const editId = document.getElementById('receiptEditId').value;
 
-            if(!receiptNo || !name || !amount) return alert("الرجاء إدخال البيانات الأساسية (الرقم، الاسم، المبلغ)");
+            if(!receiptNo || !name) return alert("الرجاء إكمال البيانات");
 
-            const payload = { receiptNo, date, name, amount, desc };
-
-            if(editId) {
-                await fetch(`/api/receipts/${editId}`, {method: 'DELETE'});
-            }
+            if(editId) await fetch(`/api/receipts/${editId}`, {method: 'DELETE'});
 
             await fetch('/api/receipts', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ receiptNo, date, name, amount, desc })
             });
 
-            addLog(editId ? 'تعديل' : 'إضافة', 'سندات القبض', `سند رقم: ${receiptNo}`);
+            addLog(editId ? 'تعديل' : 'إضافة', 'سندات القبض', `رقم: ${receiptNo}`);
             resetReceiptForm();
             fetchReceipts();
         }
 
         async function deleteReceipt(id) {
-            if(!confirm("هل أنت متأكد من حذف السند؟")) return;
+            if(!confirm("حذف السند؟")) return;
             await fetch(`/api/receipts/${id}`, {method: 'DELETE'});
-            addLog('حذف', 'سندات القبض', `تم حذف سند`);
+            addLog('حذف', 'سندات القبض', 'تم حذف سند');
             fetchReceipts();
         }
 
@@ -427,7 +417,7 @@
             document.getElementById('receiptAmount').value = r.amount;
             document.getElementById('receiptDesc').value = r.desc;
             document.getElementById('receiptEditId').value = id;
-            document.getElementById('receiptFormTitle').innerText = "تعديل سند القبض";
+            document.getElementById('receiptFormTitle').innerText = "تعديل السند";
             document.getElementById('cancelReceiptBtn').style.display = "inline-block";
         }
 
@@ -441,9 +431,8 @@
             document.getElementById('receiptFormTitle').innerText = "إضافة سند قبض";
             document.getElementById('cancelReceiptBtn').style.display = "none";
         }
-        // ================= نهاية دوال سندات القبض =================
 
-        // الأخبار
+        // --- الأخبار ---
         async function fetchNews() {
             try {
                 const res = await fetch('/api/news');
@@ -470,19 +459,14 @@
             const date = document.getElementById('newsDate').value;
             const desc = document.getElementById('newsDesc').value;
             const editId = document.getElementById('newsEditId').value;
-
             if(!title) return alert("ادخل العنوان");
 
-            const payload = { title, date, desc, image: currentImageBase64 };
-
-            if(editId) {
-                await fetch(`/api/news/${editId}`, {method: 'DELETE'});
-            }
+            if(editId) await fetch(`/api/news/${editId}`, {method: 'DELETE'});
 
             await fetch('/api/news', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ title, date, desc, image: currentImageBase64 })
             });
 
             addLog(editId ? 'تعديل' : 'إضافة', 'الأخبار', title);
@@ -491,7 +475,7 @@
         }
 
         async function deleteNews(id) {
-            if(!confirm("حذف الخبر؟")) return;
+            if(!confirm("حذف؟")) return;
             await fetch(`/api/news/${id}`, {method: 'DELETE'});
             addLog('حذف', 'الأخبار', 'تم حذف خبر');
             fetchNews();
@@ -541,6 +525,7 @@
             });
         }
 
+        // --- السجل ---
         function addLog(action, section, details) {
             const log = { time: new Date().toLocaleString('ar-EG'), action, section, details };
             logs.unshift(log);
@@ -550,6 +535,7 @@
 
         function renderLogs() {
             const tbody = document.getElementById('logsTableBody');
+            if(!tbody) return;
             tbody.innerHTML = '';
             logs.forEach(l => {
                 tbody.innerHTML += `<tr><td>${l.time}</td><td>${l.action}</td><td>${l.section}</td><td>${l.details}</td></tr>`;
