@@ -21,10 +21,6 @@
 
         button.save-btn { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
         button.save-btn:hover { background: #1e434d; }
-        
-        /* تنسيق زر الاستيراد الإضافي */
-        .csv-btn { background: #27ae60 !important; }
-        .csv-btn:hover { background: #219150 !important; }
 
         .shipment-list { margin-top: 40px; border-collapse: collapse; width: 100%; }
         .shipment-list th, .shipment-list td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
@@ -32,6 +28,10 @@
         
         .status-badge { padding: 4px 8px; border-radius: 50px; font-size: 0.8rem; background: #eee; }
         .delete-btn { color: #e74c3c; cursor: pointer; border: none; background: none; }
+
+        /* تنسيق إضافي لزر الاستيراد ليتناسب مع التصميم */
+        .csv-btn { background: #27ae60 !important; margin-top: 5px; }
+        .csv-btn:hover { background: #219150 !important; }
     </style>
 </head>
 <body>
@@ -58,11 +58,10 @@
             <label><input type="checkbox" id="m6"> مستودع عدن</label>
         </div>
 
-        <div class="full-width" style="display: flex; gap: 10px;">
-            <button onclick="saveShipment()" class="save-btn" style="flex: 2;">حفظ الشحنة وتحديث المراحل</button>
-            <button onclick="document.getElementById('csvFileInput').click()" class="save-btn csv-btn" style="flex: 1;">استيراد CSV</button>
-            <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="importCSV(this)">
-        </div>
+        <button onclick="saveShipment()" class="save-btn full-width">حفظ الشحنة وتحديث المراحل</button>
+        
+        <button onclick="document.getElementById('csvFileInput').click()" class="save-btn full-width csv-btn">استيراد عملاء من ملف CSV</button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="importCSV(this)">
     </div>
 
     <hr>
@@ -76,14 +75,15 @@
                 <th>إجراءات</th>
             </tr>
         </thead>
-        <tbody id="shipmentsTable"></tbody>
+        <tbody id="shipmentsTable">
+            </tbody>
     </table>
 </div>
 
 <script>
     const API_URL = '/api/shipment';
 
-    // 1. حفظ الشحنة (يدوي)
+    // 1. حفظ الشحنة (تم التأكد من توافقه مع إضافة عميل جديد)
     async function saveShipment() {
         const data = {
             trackingNumber: document.getElementById('trackId').value,
@@ -113,7 +113,7 @@
         }
     }
 
-    // 2. دالة استيراد ملف CSV ومعالجته
+    // الكود الجديد: وظيفة استيراد CSV
     async function importCSV(input) {
         const file = input.files[0];
         if (!file) return;
@@ -123,10 +123,9 @@
             const text = e.target.result;
             const rows = text.split('\n');
 
-            // البدء من السطر الثاني لتجاوز العناوين
+            // البدء من الصف الثاني لتجاوز العناوين (Headers)
             for (let i = 1; i < rows.length; i++) {
                 const cols = rows[i].split(',');
-                
                 if (cols.length >= 3 && cols[0].trim() !== "") {
                     const data = {
                         trackingNumber: cols[0].trim(),
@@ -145,14 +144,14 @@
                     });
                 }
             }
-            alert('تم استيراد البيانات بنجاح');
+            alert('تم استيراد العملاء بنجاح');
             loadShipments();
-            input.value = ''; 
+            input.value = ''; // تصفير الملف
         };
         reader.readAsText(file);
     }
 
-    // 3. جلب الشحنات وعرضها
+    // 2. جلب الشحنات وعرضها
     async function loadShipments() {
         const response = await fetch('/api/shipments');
         const shipments = await response.json();
@@ -175,7 +174,7 @@
         });
     }
 
-    // 4. حذف شحنة
+    // 3. حذف شحنة
     async function deleteShipment(id) {
         if(confirm('هل أنت متأكد من الحذف؟')) {
             await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
