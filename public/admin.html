@@ -3,112 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة التحكم | النجم الحديث</title>
+<title>لوحة التحكم</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
+<link href="https://fonts.googleapis.com/css2?family=Tajawal&display=swap" rel="stylesheet">
 <style>
-:root {
---primary-color:#2b5c6a;
---secondary-color:#f16736;
---bg-color:#f4f8fb;
---sidebar-bg:#1a3c46;
---text-light:#fff;
-}
-
-body{
-font-family:'Tajawal';
-background:var(--bg-color);
-margin:0;
-display:flex;
-height:100vh;
-}
-
-#login-container{
-margin:auto;
-background:#fff;
-padding:30px;
-border-radius:12px;
-}
-
-#dashboard-container{display:none;width:100%}
-
-.sidebar{
-width:250px;
-background:var(--sidebar-bg);
-color:#fff;
-display:flex;
-flex-direction:column;
-}
-
-.sidebar a{
-padding:15px;
-color:#ccc;
-cursor:pointer;
-display:block;
-}
-
-.sidebar a.active{background:#2b5c6a;color:#fff}
-
-.main{flex:1;padding:20px;overflow:auto}
-
-.card{
-background:#fff;
-padding:15px;
-margin-bottom:15px;
-border-radius:10px;
-}
-
-.btn{padding:8px 12px;cursor:pointer}
-
-.milestone{padding:8px;margin:5px 0;border-radius:6px}
+body{font-family:Tajawal;background:#f4f8fb;margin:0}
+.login, .main{padding:20px}
+.card{background:#fff;padding:15px;margin:10px;border-radius:10px}
+button{padding:8px 12px;cursor:pointer}
+.milestone{padding:6px;margin:4px 0;border-radius:6px}
 .done{background:#d4edda}
 .pending{background:#eee}
-
-.toast{
-position:fixed;
-bottom:20px;
-left:20px;
-background:#2b5c6a;
-color:#fff;
-padding:10px;
-display:none;
-}
 </style>
 </head>
 
 <body>
 
-<div id="login-container">
-<h3>دخول</h3>
-<input id="loginUser" placeholder="user"><br><br>
-<input id="loginPass" type="password" placeholder="pass"><br><br>
+<div id="login" class="login">
+<h3>تسجيل الدخول</h3>
+<input id="user" placeholder="اسم المستخدم"><br><br>
+<input id="pass" type="password" placeholder="كلمة المرور"><br><br>
 <button onclick="login()">دخول</button>
 </div>
 
-<div id="dashboard-container">
+<div id="app" style="display:none">
 
-<div class="sidebar">
-<a onclick="tab('dashboard')" class="active">الرئيسية</a>
-<a onclick="tab('shipments')">الشحنات</a>
-<a onclick="tab('clients')">العملاء</a>
-</div>
+<div class="card">
+<h3>إضافة شحنة</h3>
+<input id="track" placeholder="رقم الحاوية"><br><br>
 
-<div class="main">
-
-<div id="dashboard" class="card">
-<h3>إحصائيات</h3>
-<p>الشحنات: <span id="sCount"></span></p>
-<p>الأخبار: <span id="nCount"></span></p>
-</div>
-
-<div id="shipments" class="card" style="display:none">
-<h3>الشحنات</h3>
-
-<input id="search" placeholder="بحث" onkeyup="search()"><br><br>
-
-<input id="track" placeholder="رقم"><br>
 <select id="status">
 <option>Loading at Origin Warehouse</option>
 <option>Gated-in at Ningbo Port</option>
@@ -116,71 +39,89 @@ display:none;
 <option>Arrived at Aden</option>
 <option>Customs Cleared</option>
 <option>Delivered to Aden Warehouse</option>
-</select><br>
+</select><br><br>
 
-<button onclick="addShipment()">حفظ</button>
+<button onclick="saveShipment()">حفظ</button>
+</div>
 
+<div class="card">
+<h3>الشحنات</h3>
 <table id="table"></table>
 </div>
 
-<div id="clients" class="card" style="display:none">
-<h3>العملاء</h3>
-
+<div class="card">
+<h3>إضافة عميل</h3>
 <input id="cname" placeholder="اسم"><br>
 <input id="ccont" placeholder="الحاوية"><br>
-<button onclick="addClient()">إضافة</button>
-<button onclick="exportCSV()">تصدير</button>
+<input id="cphone" placeholder="رقم الجوال"><br><br>
 
+<button onclick="addClient()">إضافة</button>
+</div>
+
+<div class="card">
+<h3>العملاء</h3>
 <table id="ctable"></table>
 </div>
 
 </div>
-</div>
-
-<div id="toast" class="toast"></div>
 
 <script>
 
-const USER="admin",PASS="123";
+// ================= LOGIN =================
+async function login(){
+const res = await fetch('/api/login',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+username:user.value,
+password:pass.value
+})
+});
 
-function login(){
-if(loginUser.value===USER && loginPass.value===PASS){
-login-container.style.display='none';
-dashboard-container.style.display='flex';
+const data = await res.json();
+
+if(data.success){
+document.getElementById('login').style.display='none';
+document.getElementById('app').style.display='block';
 load();
-}else alert("خطأ");
+}else{
+alert("بيانات خاطئة");
+}
 }
 
-function tab(id){
-document.querySelectorAll('.main>div').forEach(d=>d.style.display='none');
-document.getElementById(id).style.display='block';
+// ================= SHIPMENTS =================
+async function saveShipment(){
+
+await fetch('/api/shipment',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+trackingNumber:track.value,
+status:status.value,
+location:""
+})
+});
+
+alert("تم الحفظ");
+load();
 }
 
-let shipments=JSON.parse(localStorage.shipments||"[]");
-let clients=JSON.parse(localStorage.clients||"[]");
+async function loadShipments(){
+const res = await fetch('/api/shipments');
+const data = await res.json();
 
-function addShipment(){
-shipments.push({id:track.value,status:status.value});
-localStorage.shipments=JSON.stringify(shipments);
-toast("تم");
-render();
-checkNotify(track.value,status.value);
-}
-
-function render(){
 table.innerHTML="";
-shipments.forEach(s=>{
+data.forEach(s=>{
 table.innerHTML+=`
 <tr>
 <td>${s.id}</td>
 <td>${s.status}</td>
-<td>${milestonesHTML(s.status)}</td>
+<td>${milestones(s.status)}</td>
 </tr>`;
 });
-sCount.innerText=shipments.length;
 }
 
-function milestonesHTML(status){
+function milestones(status){
 const steps=[
 "Loading at Origin Warehouse",
 "Gated-in at Ningbo Port",
@@ -191,61 +132,51 @@ const steps=[
 ];
 
 let i=steps.indexOf(status);
+
 return steps.map((s,idx)=>
 `<div class="milestone ${idx<=i?'done':'pending'}">${s}</div>`
 ).join('');
 }
 
-function search(){
-let v=search.value.toLowerCase();
-table.innerHTML="";
-shipments.filter(s=>s.id.includes(v)).forEach(s=>{
-table.innerHTML+=`<tr><td>${s.id}</td><td>${s.status}</td></tr>`;
+// ================= CLIENTS =================
+async function addClient(){
+
+await fetch('/api/clients',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+name:cname.value,
+container:ccont.value,
+phone:cphone.value
+})
 });
+
+alert("تم إضافة العميل");
+loadClients();
 }
 
-function addClient(){
-clients.push({n:cname.value,c:ccont.value});
-localStorage.clients=JSON.stringify(clients);
-renderClients();
-toast("تم");
-}
+async function loadClients(){
+const res = await fetch('/api/clients');
+const data = await res.json();
 
-function renderClients(){
 ctable.innerHTML="";
-clients.forEach(c=>{
-ctable.innerHTML+=`<tr><td>${c.n}</td><td>${c.c}</td></tr>`;
+data.forEach(c=>{
+ctable.innerHTML+=`
+<tr>
+<td>${c.name}</td>
+<td>${c.container}</td>
+<td>${c.phone}</td>
+</tr>`;
 });
 }
 
-function exportCSV(){
-let csv="name,container\n";
-clients.forEach(c=>csv+=`${c.n},${c.c}\n`);
-let a=document.createElement('a');
-a.href=URL.createObjectURL(new Blob([csv]));
-a.download="clients.csv";
-a.click();
-}
-
-function checkNotify(container,status){
-if(status==="Delivered to Aden Warehouse"){
-clients.filter(c=>c.c===container)
-.forEach(c=>console.log("notify:",c.n));
-}
-}
-
-function toast(msg){
-let t=document.getElementById('toast');
-t.innerText=msg;
-t.style.display='block';
-setTimeout(()=>t.style.display='none',2000);
-}
-
+// ================= INIT =================
 function load(){
-render();
-renderClients();
+loadShipments();
+loadClients();
 }
 
 </script>
+
 </body>
 </html>
