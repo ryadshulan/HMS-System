@@ -1,383 +1,251 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم المطورة | النجم الحديث</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #2b5c6a;
-            --secondary-color: #f16736;
-            --bg-color: #f4f8fb;
-            --sidebar-bg: #1a3c46;
-            --text-dark: #333;
-            --text-light: #fff;
-            --border-color: #ddd;
-            --gray-light: #e0e0e0;
-        }
-        
-        body { font-family: 'Tajawal', sans-serif; background: var(--bg-color); margin: 0; height: 100vh; overflow: hidden; display: flex; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم | النجم الحديث</title>
 
-        /* Login Container - Fixed Visibility */
-        #login-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: var(--bg-color); display: flex; align-items: center; 
-            justify-content: center; z-index: 10000; 
-        }
-        #login-container { background: #fff; padding: 40px; border-radius: 20px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-        /* Sidebar & Layout */
-        .sidebar { width: 260px; background: var(--sidebar-bg); color: var(--text-light); display: flex; flex-direction: column; }
-        .sidebar-logo { padding: 20px; background: #fff; text-align: center; border-bottom: 3px solid var(--secondary-color); }
-        .sidebar-logo img { max-width: 120px; }
-        .sidebar-menu { list-style: none; padding: 0; margin: 0; flex: 1; }
-        .sidebar-menu a { display: flex; align-items: center; padding: 15px 20px; color: #ccc; text-decoration: none; transition: 0.3s; cursor: pointer; }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background: var(--primary-color); color: #fff; border-right: 4px solid var(--secondary-color); }
-        .sidebar-menu i { margin-left: 10px; width: 20px; }
+<style>
+:root {
+--primary-color:#2b5c6a;
+--secondary-color:#f16736;
+--bg-color:#f4f8fb;
+--sidebar-bg:#1a3c46;
+--text-light:#fff;
+}
 
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+body{
+font-family:'Tajawal';
+background:var(--bg-color);
+margin:0;
+display:flex;
+height:100vh;
+}
 
-        .milestone-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f9f9f9; padding: 15px; border-radius: 10px; }
-        .milestone-item { border: 1px solid #eee; padding: 10px; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
-        .milestone-item i { font-size: 1.2rem; color: var(--primary-color); }
+#login-container{
+margin:auto;
+background:#fff;
+padding:30px;
+border-radius:12px;
+}
 
-        .form-group { margin-bottom: 15px; text-align: right; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--primary-color); }
-        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
-        
-        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-primary { background: var(--primary-color); color: #fff; }
-        .btn-success { background: #28a745; color: #fff; }
-        .btn-warning { background: #ffc107; color: #333; }
-        .btn-danger { background: #dc3545; color: #fff; }
-        .btn-import { background: #6c5ce7; color: #fff; }
+#dashboard-container{display:none;width:100%}
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #eee; }
-        th { background: #f8f9fa; color: var(--primary-color); }
+.sidebar{
+width:250px;
+background:var(--sidebar-bg);
+color:#fff;
+display:flex;
+flex-direction:column;
+}
 
-        .content-section { display: none; }
-        .content-section.active { display: block; }
-    </style>
+.sidebar a{
+padding:15px;
+color:#ccc;
+cursor:pointer;
+display:block;
+}
+
+.sidebar a.active{background:#2b5c6a;color:#fff}
+
+.main{flex:1;padding:20px;overflow:auto}
+
+.card{
+background:#fff;
+padding:15px;
+margin-bottom:15px;
+border-radius:10px;
+}
+
+.btn{padding:8px 12px;cursor:pointer}
+
+.milestone{padding:8px;margin:5px 0;border-radius:6px}
+.done{background:#d4edda}
+.pending{background:#eee}
+
+.toast{
+position:fixed;
+bottom:20px;
+left:20px;
+background:#2b5c6a;
+color:#fff;
+padding:10px;
+display:none;
+}
+</style>
 </head>
+
 <body>
 
-    <div id="login-overlay">
-        <div id="login-container">
-            <img src="uploads/شعار النجم الحديث.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/150'">
-            <h2>دخول الإدارة</h2>
-            <div id="login-error" style="color:red; display:none; margin-bottom:10px;">خطأ في البيانات!</div>
-            <input type="text" id="loginUser" placeholder="اسم المستخدم" style="margin-bottom:10px">
-            <input type="password" id="loginPass" placeholder="كلمة المرور" style="margin-bottom:10px">
-            <button class="btn btn-primary" style="width:100%" onclick="verifyLogin()">دخول</button>
-        </div>
-    </div>
+<div id="login-container">
+<h3>دخول</h3>
+<input id="loginUser" placeholder="user"><br><br>
+<input id="loginPass" type="password" placeholder="pass"><br><br>
+<button onclick="login()">دخول</button>
+</div>
 
-    <div id="dashboard-container" style="display:none; width: 100%;">
-        <aside class="sidebar">
-            <div class="sidebar-logo"><img src="uploads/شعار النجم الحديث.jpg" alt="Logo"></div>
-            <ul class="sidebar-menu">
-                <li><a onclick="switchTab('dashboard')" id="tab-dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
-                <li><a onclick="switchTab('shipments')" id="tab-shipments"><i class="fas fa-route"></i> تتبع الشحنات</a></li>
-                <li><a onclick="switchTab('customers')" id="tab-customers"><i class="fas fa-users"></i> قاعدة العملاء</a></li>
-                <li><a onclick="switchTab('news')" id="tab-news"><i class="fas fa-newspaper"></i> الأخبار</a></li>
-                <li style="margin-top:auto"><a onclick="logout()" style="color:#ff7675"><i class="fas fa-sign-out-alt"></i> خروج</a></li>
-            </ul>
-        </aside>
+<div id="dashboard-container">
 
-        <main class="main-content">
-            <section id="dashboard-section" class="content-section active">
-                <div class="card">
-                    <h2>إحصائيات سريعة</h2>
-                    <div style="display:flex; gap:20px;">
-                        <div class="card" style="flex:1; background: var(--primary-color); color:#fff; text-align:center">
-                            <h3 id="count-shipments">0</h3><p>شحنة نشطة</p>
-                        </div>
-                        <div class="card" style="flex:1; background: var(--secondary-color); color:#fff; text-align:center">
-                            <h3 id="count-customers">0</h3><p>عميل مسجل</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+<div class="sidebar">
+<a onclick="tab('dashboard')" class="active">الرئيسية</a>
+<a onclick="tab('shipments')">الشحنات</a>
+<a onclick="tab('clients')">العملاء</a>
+</div>
 
-            <section id="shipments-section" class="content-section">
-                <div class="card">
-                    <h2 id="ship-form-title">إضافة / تحديث شحنة</h2>
-                    <input type="hidden" id="edit-ship-index" value="-1">
-                    <div class="form-group">
-                        <label>رقم الحاوية / التتبع:</label>
-                        <input type="text" id="trackId" placeholder="مثلاً: Star-2024-001">
-                    </div>
-                    <div class="milestone-grid">
-                        <div class="milestone-item">
-                            <i class="fas fa-warehouse"></i>
-                            <div><span>مخازن الصين</span><select id="m1"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                        <div class="milestone-item">
-                            <i class="fas fa-truck-loading"></i>
-                            <div><span>ميناء نينغبو</span><select id="m2"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                        <div class="milestone-item">
-                            <i class="fas fa-ship"></i>
-                            <div><span>التحميل للباخرة</span><select id="m3"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                        <div class="milestone-item">
-                            <i class="fas fa-anchor"></i>
-                            <div><span>وصول عدن</span><select id="m4"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                        <div class="milestone-item">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                            <div><span>التخليص</span><select id="m5"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                        <div class="milestone-item">
-                            <i class="fas fa-clipboard-check"></i>
-                            <div><span>مستودع عدن</span><select id="m6" onchange="checkFinalStatus(this.value)"><option value="0">انتظار</option><option value="1">جاري</option><option value="2">تم ✅</option></select></div>
-                        </div>
-                    </div>
-                    <br>
-                    <button class="btn btn-primary" onclick="saveShipment()">حفظ الشحنة</button>
-                    <button class="btn btn-danger" onclick="resetShipForm()">إلغاء</button>
-                </div>
+<div class="main">
 
-                <div class="card">
-                    <h3>سجل الشحنات الحالي</h3>
-                    <table>
-                        <thead><tr><th>رقم الحاوية</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead>
-                        <tbody id="shipmentsTableBody"></tbody>
-                    </table>
-                </div>
-            </section>
+<div id="dashboard" class="card">
+<h3>إحصائيات</h3>
+<p>الشحنات: <span id="sCount"></span></p>
+<p>الأخبار: <span id="nCount"></span></p>
+</div>
 
-            <section id="customers-section" class="content-section">
-                <div class="card">
-                    <h2 id="cust-form-title">إدارة العملاء</h2>
-                    <input type="hidden" id="edit-cust-index" value="-1">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                        <input type="text" id="custName" placeholder="اسم العميل">
-                        <input type="text" id="custPhone" placeholder="رقم الهاتف">
-                        <input type="text" id="custContainer" placeholder="رقم الحاوية">
-                    </div>
-                    <div style="margin-top: 15px; display: flex; gap: 10px;">
-                        <button class="btn btn-success" onclick="addCustomer()">حفظ العميل</button>
-                        <input type="file" id="importFile" accept=".csv" style="display:none" onchange="handleImport(this)">
-                        <button class="btn btn-import" onclick="document.getElementById('importFile').click()"><i class="fas fa-file-import"></i> استيراد CSV</button>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h3>قائمة العملاء</h3>
-                    <table>
-                        <thead><tr><th>الاسم</th><th>الهاتف</th><th>رقم الحاوية</th><th>إجراء</th></tr></thead>
-                        <tbody id="customersTableBody"></tbody>
-                    </table>
-                </div>
-            </section>
+<div id="shipments" class="card" style="display:none">
+<h3>الشحنات</h3>
 
-            <section id="news-section" class="content-section">
-                <div class="card"><h2>إدارة الأخبار</h2><p>يمكنك إضافة أخبار الشركة هنا.</p></div>
-            </section>
-        </main>
-    </div>
+<input id="search" placeholder="بحث" onkeyup="search()"><br><br>
 
-    <script>
-        // Auth Logic
-        function verifyLogin() {
-            const u = document.getElementById('loginUser').value;
-            const p = document.getElementById('loginPass').value;
-            if (u === 'admin' && p === 'admin123') {
-                sessionStorage.setItem('hms_auth', 'true');
-                checkAuth();
-            } else { document.getElementById('login-error').style.display = 'block'; }
-        }
+<input id="track" placeholder="رقم"><br>
+<select id="status">
+<option>Loading at Origin Warehouse</option>
+<option>Gated-in at Ningbo Port</option>
+<option>Loaded on Board</option>
+<option>Arrived at Aden</option>
+<option>Customs Cleared</option>
+<option>Delivered to Aden Warehouse</option>
+</select><br>
 
-        function checkAuth() {
-            if(sessionStorage.getItem('hms_auth') === 'true') {
-                document.getElementById('login-overlay').style.display = 'none';
-                document.getElementById('dashboard-container').style.display = 'flex';
-                renderAll();
-            }
-        }
-        window.onload = checkAuth;
+<button onclick="addShipment()">حفظ</button>
 
-        // Data Management
-        let customers = JSON.parse(localStorage.getItem('hms_customers')) || [];
-        let shipments = JSON.parse(localStorage.getItem('hms_shipments')) || [];
+<table id="table"></table>
+</div>
 
-        function switchTab(id) {
-            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
-            document.getElementById(id + '-section').classList.add('active');
-            document.getElementById('tab-' + id).classList.add('active');
-            updateCounts();
-        }
+<div id="clients" class="card" style="display:none">
+<h3>العملاء</h3>
 
-        // --- Shipment Functions (Edit/Delete) ---
-        function saveShipment() {
-            const trackId = document.getElementById('trackId').value;
-            const editIdx = parseInt(document.getElementById('edit-ship-index').value);
-            if(!trackId) return alert("أدخل رقم التتبع");
+<input id="cname" placeholder="اسم"><br>
+<input id="ccont" placeholder="الحاوية"><br>
+<button onclick="addClient()">إضافة</button>
+<button onclick="exportCSV()">تصدير</button>
 
-            const data = {
-                id: trackId,
-                m: [document.getElementById('m1').value, document.getElementById('m2').value, 
-                    document.getElementById('m3').value, document.getElementById('m4').value, 
-                    document.getElementById('m5').value, document.getElementById('m6').value],
-                lastUpdated: new Date().toLocaleString()
-            };
+<table id="ctable"></table>
+</div>
 
-            if(editIdx > -1) shipments[editIdx] = data;
-            else shipments.push(data);
+</div>
+</div>
 
-            localStorage.setItem('hms_shipments', JSON.stringify(shipments));
-            resetShipForm();
-            renderShipments();
-            updateCounts();
-        }
+<div id="toast" class="toast"></div>
 
-        function editShipment(idx) {
-            const s = shipments[idx];
-            document.getElementById('trackId').value = s.id;
-            s.m.forEach((val, i) => document.getElementById(`m${i+1}`).value = val);
-            document.getElementById('edit-ship-index').value = idx;
-            document.getElementById('ship-form-title').innerText = "تعديل الشحنة: " + s.id;
-        }
+<script>
 
-        function deleteShipment(idx) {
-            if(confirm("هل أنت متأكد من حذف هذه الشحنة؟")) {
-                shipments.splice(idx, 1);
-                localStorage.setItem('hms_shipments', JSON.stringify(shipments));
-                renderShipments();
-                updateCounts();
-            }
-        }
+const USER="admin",PASS="123";
 
-        function resetShipForm() {
-            document.getElementById('trackId').value = "";
-            for(let i=1; i<=6; i++) document.getElementById(`m${i}`).value = "0";
-            document.getElementById('edit-ship-index').value = "-1";
-            document.getElementById('ship-form-title').innerText = "إضافة / تحديث شحنة";
-        }
+function login(){
+if(loginUser.value===USER && loginPass.value===PASS){
+login-container.style.display='none';
+dashboard-container.style.display='flex';
+load();
+}else alert("خطأ");
+}
 
-        function renderShipments() {
-            const tbody = document.getElementById('shipmentsTableBody');
-            tbody.innerHTML = '';
-            shipments.forEach((s, i) => {
-                tbody.innerHTML += `<tr>
-                    <td>${s.id}</td><td>${s.lastUpdated}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editShipment(${i})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-danger" onclick="deleteShipment(${i})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
-            });
-        }
+function tab(id){
+document.querySelectorAll('.main>div').forEach(d=>d.style.display='none');
+document.getElementById(id).style.display='block';
+}
 
-        // --- Customer Functions (Edit/Import) ---
-        function addCustomer() {
-            const name = document.getElementById('custName').value;
-            const phone = document.getElementById('custPhone').value;
-            const container = document.getElementById('custContainer').value;
-            const editIdx = parseInt(document.getElementById('edit-cust-index').value);
+let shipments=JSON.parse(localStorage.shipments||"[]");
+let clients=JSON.parse(localStorage.clients||"[]");
 
-            if(!name || !container) return alert("يرجى ملء البيانات");
+function addShipment(){
+shipments.push({id:track.value,status:status.value});
+localStorage.shipments=JSON.stringify(shipments);
+toast("تم");
+render();
+checkNotify(track.value,status.value);
+}
 
-            const custData = { name, phone, container };
+function render(){
+table.innerHTML="";
+shipments.forEach(s=>{
+table.innerHTML+=`
+<tr>
+<td>${s.id}</td>
+<td>${s.status}</td>
+<td>${milestonesHTML(s.status)}</td>
+</tr>`;
+});
+sCount.innerText=shipments.length;
+}
 
-            if(editIdx > -1) customers[editIdx] = custData;
-            else customers.push(custData);
+function milestonesHTML(status){
+const steps=[
+"Loading at Origin Warehouse",
+"Gated-in at Ningbo Port",
+"Loaded on Board",
+"Arrived at Aden",
+"Customs Cleared",
+"Delivered to Aden Warehouse"
+];
 
-            localStorage.setItem('hms_customers', JSON.stringify(customers));
-            resetCustForm();
-            renderCustomers();
-            updateCounts();
-        }
+let i=steps.indexOf(status);
+return steps.map((s,idx)=>
+`<div class="milestone ${idx<=i?'done':'pending'}">${s}</div>`
+).join('');
+}
 
-        function editCustomer(idx) {
-            const c = customers[idx];
-            document.getElementById('custName').value = c.name;
-            document.getElementById('custPhone').value = c.phone;
-            document.getElementById('custContainer').value = c.container;
-            document.getElementById('edit-cust-index').value = idx;
-            document.getElementById('cust-form-title').innerText = "تعديل بيانات العميل";
-        }
+function search(){
+let v=search.value.toLowerCase();
+table.innerHTML="";
+shipments.filter(s=>s.id.includes(v)).forEach(s=>{
+table.innerHTML+=`<tr><td>${s.id}</td><td>${s.status}</td></tr>`;
+});
+}
 
-        function deleteCustomer(idx) {
-            customers.splice(idx, 1);
-            localStorage.setItem('hms_customers', JSON.stringify(customers));
-            renderCustomers();
-            updateCounts();
-        }
+function addClient(){
+clients.push({n:cname.value,c:ccont.value});
+localStorage.clients=JSON.stringify(clients);
+renderClients();
+toast("تم");
+}
 
-        function handleImport(input) {
-            const file = input.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const text = e.target.result;
-                const rows = text.split('\n');
-                rows.forEach(row => {
-                    const cols = row.split(',');
-                    if(cols.length >= 2 && cols[0].trim() !== "الاسم") {
-                        customers.push({
-                            name: cols[0].trim(),
-                            phone: cols[1]?.trim() || "",
-                            container: cols[2]?.trim() || ""
-                        });
-                    }
-                });
-                localStorage.setItem('hms_customers', JSON.stringify(customers));
-                renderCustomers();
-                updateCounts();
-                alert("تم استيراد البيانات بنجاح");
-            };
-            reader.readAsText(file);
-        }
+function renderClients(){
+ctable.innerHTML="";
+clients.forEach(c=>{
+ctable.innerHTML+=`<tr><td>${c.n}</td><td>${c.c}</td></tr>`;
+});
+}
 
-        function resetCustForm() {
-            document.getElementById('custName').value = "";
-            document.getElementById('custPhone').value = "";
-            document.getElementById('custContainer').value = "";
-            document.getElementById('edit-cust-index').value = "-1";
-            document.getElementById('cust-form-title').innerText = "إدارة العملاء";
-        }
+function exportCSV(){
+let csv="name,container\n";
+clients.forEach(c=>csv+=`${c.n},${c.c}\n`);
+let a=document.createElement('a');
+a.href=URL.createObjectURL(new Blob([csv]));
+a.download="clients.csv";
+a.click();
+}
 
-        function renderCustomers() {
-            const tbody = document.getElementById('customersTableBody');
-            tbody.innerHTML = '';
-            customers.forEach((c, i) => {
-                tbody.innerHTML += `<tr>
-                    <td>${c.name}</td><td>${c.phone}</td><td>${c.container}</td>
-                    <td>
-                        <button class="btn btn-warning" onclick="editCustomer(${i})"><i class="fas fa-user-edit"></i></button>
-                        <button class="btn btn-danger" onclick="deleteCustomer(${i})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
-            });
-        }
+function checkNotify(container,status){
+if(status==="Delivered to Aden Warehouse"){
+clients.filter(c=>c.c===container)
+.forEach(c=>console.log("notify:",c.n));
+}
+}
 
-        // Helpers
-        function updateCounts() {
-            document.getElementById('count-shipments').innerText = shipments.length;
-            document.getElementById('count-customers').innerText = customers.length;
-        }
+function toast(msg){
+let t=document.getElementById('toast');
+t.innerText=msg;
+t.style.display='block';
+setTimeout(()=>t.style.display='none',2000);
+}
 
-        function renderAll() {
-            renderShipments();
-            renderCustomers();
-            updateCounts();
-        }
+function load(){
+render();
+renderClients();
+}
 
-        function logout() { sessionStorage.clear(); location.reload(); }
-        
-        function checkFinalStatus(val) {
-            if(val === "2") {
-                const tid = document.getElementById('trackId').value;
-                const count = customers.filter(c => c.container === tid).length;
-                if(count > 0) alert(`تنبيه: يوجد (${count}) عملاء مرتبطين بهذه الحاوية الجاهزة للاستلام.`);
-            }
-        }
-    </script>
+</script>
 </body>
 </html>
