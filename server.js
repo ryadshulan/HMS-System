@@ -10,15 +10,43 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+function readEnvValue(name, fallback = '') {
+  const rawValue = process.env[name];
+  let value = rawValue == null || rawValue === '' ? fallback : String(rawValue);
+  const assignmentPrefix = `${name}=`;
+
+  value = value.trim().replace(/^\uFEFF/, '');
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+
+  if (value.startsWith(assignmentPrefix)) {
+    value = value.slice(assignmentPrefix.length).trim();
+  }
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+
+  return value;
+}
+
 const app = express();
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const authCookieName = 'hms_token';
 const isProduction = process.env.NODE_ENV === 'production';
-const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/hms';
-const mongoDbName = process.env.MONGO_DB_NAME || '';
-const jwtSecret = process.env.JWT_SECRET || 'change-this-in-production';
-const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
-const graphVersion = process.env.META_GRAPH_VERSION || 'v24.0';
+const mongoUri = readEnvValue('MONGO_URI', 'mongodb://127.0.0.1:27017/hms');
+const mongoDbName = readEnvValue('MONGO_DB_NAME');
+const jwtSecret = readEnvValue('JWT_SECRET', 'change-this-in-production');
+const jwtExpiresIn = readEnvValue('JWT_EXPIRES_IN', '7d');
+const graphVersion = readEnvValue('META_GRAPH_VERSION', 'v24.0');
 const defaultWhatsAppDeliveryMessage = 'وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.';
 const whatsAppDefaultCountryCode = String(process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '967').replace(/\D/g, '');
 const mongoServerSelectionTimeoutMs = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000);
@@ -140,6 +168,13 @@ function getDatabaseHealthPayload() {
 
 if (mongoUri.includes('<db_password>')) {
   console.error('MONGO_URI still contains <db_password>. Replace it with the real MongoDB Atlas password in .env or Render env vars.');
+  process.exit(1);
+}
+
+if (!/^mongodb(\+srv)?:\/\//.test(mongoUri)) {
+  console.error(
+    'Invalid MONGO_URI. In Render, put only the connection string value, starting with mongodb:// or mongodb+srv://. Do not include "MONGO_URI=" in the value field.'
+  );
   process.exit(1);
 }
 
