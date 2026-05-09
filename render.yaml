@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: hms-system
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_NAME
+        value: hms
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: META_GRAPH_VERSION
+        value: v24.0
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_TEMPLATE_NAME
+        sync: false
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: ar
+      - key: WHATSAPP_DELIVERY_MESSAGE
+        value: وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.
+      - key: WHATSAPP_DEFAULT_COUNTRY_CODE
+        value: 967
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: hms
