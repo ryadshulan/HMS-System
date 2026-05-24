@@ -39,6 +39,7 @@ function readEnvValue(name, fallback = '') {
 }
 
 const app = express();
+app.disable('x-powered-by');
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const authCookieName = 'hms_token';
 const isProduction = process.env.NODE_ENV === 'production';
