@@ -12,6 +12,7 @@ Example:
 ```env
 MONGO_URI=mongodb+srv://HMS:YOUR_URL_ENCODED_PASSWORD@cluster0.iwna1yj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&authSource=admin
 MONGO_DB_NAME=hms
+PUBLIC_BASE_URL=https://hms-system-8u0x.onrender.com
 ```
 
 ## 2. JWT

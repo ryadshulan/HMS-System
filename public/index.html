@@ -6,14 +6,29 @@
     <title>النجم الحديث | للشحن والاستيراد</title>
     <meta name="description" content="النجم الحديث للشحن والاستيراد: تتبع الحاويات، إدارة مراحل الشحن، وربط العملاء بإشعارات واتساب عند وصول الشحنات إلى مستودعات عدن.">
     <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#2b5c6a">
     <meta property="og:title" content="النجم الحديث | للشحن والاستيراد">
     <meta property="og:description" content="تتبع شحنتك وخدمات الشحن والاستيراد من الصين إلى اليمن مع النجم الحديث.">
     <meta property="og:type" content="website">
+    <meta property="og:locale" content="ar_YE">
     <meta property="og:url" content="https://hms-system-8u0x.onrender.com/">
     <meta property="og:image" content="https://hms-system-8u0x.onrender.com/uploads/شعار النجم الحديث.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="النجم الحديث | للشحن والاستيراد">
+    <meta name="twitter:description" content="تتبع شحنتك وخدمات الشحن والاستيراد من الصين إلى اليمن مع النجم الحديث.">
     <link rel="canonical" href="https://hms-system-8u0x.onrender.com/">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "النجم الحديث",
+      "url": "https://hms-system-8u0x.onrender.com/",
+      "logo": "https://hms-system-8u0x.onrender.com/uploads/شعار النجم الحديث.jpg",
+      "description": "خدمات الشحن والاستيراد وتتبع الحاويات من الصين إلى اليمن."
+    }
+    </script>
     <style>
         :root {
             --primary-color: #2b5c6a;
@@ -513,7 +528,7 @@
         <p>حلقة الوصل الموثوقة بين الصين واليمن مع تحديثات شحن واضحة ومباشرة في كل مرحلة.</p>
 
         <div class="tracking-box">
-            <input type="text" placeholder="أدخل رقم الحاوية مثل HMSU-123" id="trackingNumber">
+            <input type="text" placeholder="أدخل رقم الحاوية مثل HMSU-123" id="trackingNumber" autocomplete="off">
             <button onclick="trackShipment()"><i class="fas fa-search"></i> تتبع الآن</button>
         </div>
 
@@ -666,7 +681,14 @@
             return escapeHtml(value);
         }
 
-        window.onload = loadLatestNews;
+        window.onload = () => {
+            loadLatestNews();
+            document.getElementById('trackingNumber').addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    trackShipment();
+                }
+            });
+        };
     </script>
 </body>
 </html>

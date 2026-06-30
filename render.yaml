@@ -11,6 +11,8 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: PUBLIC_BASE_URL
+        value: https://hms-system-8u0x.onrender.com
       - key: MONGO_URI
         sync: false
       - key: MONGO_DB_NAME

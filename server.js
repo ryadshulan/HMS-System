@@ -49,9 +49,24 @@ const jwtSecret = readEnvValue('JWT_SECRET', 'change-this-in-production');
 const jwtExpiresIn = readEnvValue('JWT_EXPIRES_IN', '7d');
 const graphVersion = readEnvValue('META_GRAPH_VERSION', 'v24.0');
 const defaultWhatsAppDeliveryMessage = 'وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.';
-const whatsAppDefaultCountryCode = String(process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '967').replace(/\D/g, '');
+const publicBaseUrl = readEnvValue('PUBLIC_BASE_URL', 'https://hms-system-8u0x.onrender.com').replace(/\/+$/, '');
+const whatsAppBusinessAccountId = readEnvValue('WHATSAPP_BUSINESS_ACCOUNT_ID');
+const whatsAppPhoneNumberId = readEnvValue('WHATSAPP_PHONE_NUMBER_ID');
+const whatsAppAccessToken = readEnvValue('WHATSAPP_ACCESS_TOKEN');
+const whatsAppVerifyToken = readEnvValue('WHATSAPP_VERIFY_TOKEN');
+const whatsAppTemplateName = readEnvValue('WHATSAPP_TEMPLATE_NAME');
+const whatsAppTemplateLanguage = readEnvValue('WHATSAPP_TEMPLATE_LANGUAGE', 'ar');
+const whatsAppDeliveryMessage = readEnvValue('WHATSAPP_DELIVERY_MESSAGE', defaultWhatsAppDeliveryMessage);
+const whatsAppDefaultCountryCode = readEnvValue('WHATSAPP_DEFAULT_COUNTRY_CODE', '967').replace(/\D/g, '');
 const mongoServerSelectionTimeoutMs = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000);
 const requireDatabase = process.env.REQUIRE_DB === 'true' || isProduction;
+const allowedCorsOrigins = new Set(
+  [
+    publicBaseUrl,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ].filter(Boolean)
+);
 const loginWindowMs = 15 * 60 * 1000;
 const maxLoginAttempts = 8;
 const loginAttempts = new Map();
@@ -183,14 +198,30 @@ if (!process.env.JWT_SECRET) {
   console.warn('JWT_SECRET is not set. A local fallback is being used. Set a strong secret before production.');
 }
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedCorsOrigins.has(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS.'));
+    },
+    credentials: true,
+  })
+);
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
+  if (isProduction) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
     [
@@ -204,8 +235,19 @@ app.use((req, res, next) => {
   );
   next();
 });
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(uploadDir));
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    maxAge: isProduction ? '1h' : 0,
+    etag: true,
+  })
+);
+app.use(
+  '/uploads',
+  express.static(uploadDir, {
+    maxAge: isProduction ? '7d' : 0,
+    etag: true,
+  })
+);
 
 mongoose.connection.on('connected', () => {
   lastMongoConnectionError = '';
@@ -703,7 +745,7 @@ function renderMessageTemplate(template, client, shipment) {
 
 function buildClientNotificationMessage(client, shipment) {
   return renderMessageTemplate(
-    process.env.WHATSAPP_DELIVERY_MESSAGE || defaultWhatsAppDeliveryMessage,
+    whatsAppDeliveryMessage,
     client,
     shipment
   );
@@ -711,18 +753,17 @@ function buildClientNotificationMessage(client, shipment) {
 
 function buildWhatsAppPayload(client, shipment, message) {
   const to = normalizePhoneForWhatsApp(client.phone);
-  const templateName = process.env.WHATSAPP_TEMPLATE_NAME;
 
-  if (templateName) {
+  if (whatsAppTemplateName) {
     return {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to,
       type: 'template',
       template: {
-        name: templateName,
+        name: whatsAppTemplateName,
         language: {
-          code: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'ar',
+          code: whatsAppTemplateLanguage,
         },
         components: [
           {
@@ -750,12 +791,10 @@ function buildWhatsAppPayload(client, shipment, message) {
 }
 
 async function sendWhatsAppNotification(client, shipment) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const recipientPhone = normalizePhoneForWhatsApp(client.phone);
   const message = buildClientNotificationMessage(client, shipment);
 
-  if (!phoneNumberId || !accessToken) {
+  if (!whatsAppPhoneNumberId || !whatsAppAccessToken) {
     return {
       to: recipientPhone,
       message,
@@ -769,12 +808,12 @@ async function sendWhatsAppNotification(client, shipment) {
 
   const payload = buildWhatsAppPayload(client, shipment, message);
   const response = await fetch(
-    `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,
+    `https://graph.facebook.com/${graphVersion}/${whatsAppPhoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${whatsAppAccessToken}`,
       },
       body: JSON.stringify(payload),
     }
@@ -1450,7 +1489,7 @@ app.get('/api/webhooks/whatsapp', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token && token === whatsAppVerifyToken) {
     return res.status(200).send(challenge);
   }
 
