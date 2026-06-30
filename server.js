@@ -236,16 +236,21 @@ app.use((req, res, next) => {
   next();
 });
 app.use(
-  express.static(path.join(__dirname, 'public'), {
-    maxAge: isProduction ? '1h' : 0,
-    etag: true,
-  })
-);
-app.use(
   '/uploads',
   express.static(uploadDir, {
     maxAge: isProduction ? '7d' : 0,
     etag: true,
+  })
+);
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    maxAge: isProduction ? '1h' : 0,
+    etag: true,
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store');
+      }
+    },
   })
 );
 
@@ -996,6 +1001,7 @@ function requireDbConnection(req, res, next) {
 }
 
 app.get('/healthz', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ ok: true, database: getDatabaseHealthPayload() });
 });
 
