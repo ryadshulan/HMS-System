@@ -25,6 +25,8 @@ services:
         value: 7d
       - key: META_GRAPH_VERSION
         value: v24.0
+      - key: META_APP_SECRET
+        sync: false
       - key: WHATSAPP_BUSINESS_ACCOUNT_ID
         sync: false
       - key: WHATSAPP_PHONE_NUMBER_ID
@@ -34,9 +36,11 @@ services:
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false
       - key: WHATSAPP_TEMPLATE_NAME
-        sync: false
+        value: hello
       - key: WHATSAPP_TEMPLATE_LANGUAGE
-        value: ar
+        value: en
+      - key: WHATSAPP_TEMPLATE_BODY_PARAMETERS
+        value: ""
       - key: WHATSAPP_DELIVERY_MESSAGE
         value: وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.
       - key: WHATSAPP_DEFAULT_COUNTRY_CODE

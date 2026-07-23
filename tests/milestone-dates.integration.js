@@ -16,6 +16,8 @@ const serverProcess = spawn(process.execPath, ['server.js'], {
     PORT: String(testPort),
     MONGO_DB_NAME: testDatabaseName,
     JWT_SECRET: 'codex-milestone-test-secret',
+    WHATSAPP_ACCESS_TOKEN: '',
+    WHATSAPP_PHONE_NUMBER_ID: '',
   },
   stdio: 'ignore',
 });

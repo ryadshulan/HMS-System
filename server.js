@@ -48,6 +48,7 @@ const mongoDbName = readEnvValue('MONGO_DB_NAME');
 const jwtSecret = readEnvValue('JWT_SECRET', 'change-this-in-production');
 const jwtExpiresIn = readEnvValue('JWT_EXPIRES_IN', '7d');
 const graphVersion = readEnvValue('META_GRAPH_VERSION', 'v24.0');
+const metaAppSecret = readEnvValue('META_APP_SECRET');
 const defaultWhatsAppDeliveryMessage = 'وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.';
 const publicBaseUrl = readEnvValue('PUBLIC_BASE_URL', 'https://hms-system-8u0x.onrender.com').replace(/\/+$/, '');
 const whatsAppBusinessAccountId = readEnvValue('WHATSAPP_BUSINESS_ACCOUNT_ID');
@@ -56,9 +57,17 @@ const whatsAppAccessToken = readEnvValue('WHATSAPP_ACCESS_TOKEN');
 const whatsAppVerifyToken = readEnvValue('WHATSAPP_VERIFY_TOKEN');
 const whatsAppTemplateName = readEnvValue('WHATSAPP_TEMPLATE_NAME');
 const whatsAppTemplateLanguage = readEnvValue('WHATSAPP_TEMPLATE_LANGUAGE', 'ar');
+const whatsAppTemplateBodyParameters = readEnvValue('WHATSAPP_TEMPLATE_BODY_PARAMETERS')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 const whatsAppDeliveryMessage = readEnvValue('WHATSAPP_DELIVERY_MESSAGE', defaultWhatsAppDeliveryMessage);
 const whatsAppDefaultCountryCode = readEnvValue('WHATSAPP_DEFAULT_COUNTRY_CODE', '967').replace(/\D/g, '');
 const appTimeZone = readEnvValue('APP_TIMEZONE', 'Asia/Aden');
+const automaticMilestoneIntervalMs = Math.max(
+  Number(process.env.AUTOMATIC_MILESTONE_INTERVAL_MS || 5 * 60 * 1000),
+  60 * 1000
+);
 const mongoServerSelectionTimeoutMs = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000);
 const requireDatabase = process.env.REQUIRE_DB === 'true' || isProduction;
 const allowedCorsOrigins = new Set(
@@ -212,7 +221,16 @@ app.use(
   })
 );
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  express.json({
+    limit: '10mb',
+    verify(req, res, buffer) {
+      if (req.originalUrl.startsWith('/api/webhooks/whatsapp')) {
+        req.rawBody = Buffer.from(buffer);
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   if (isProduction) {
@@ -276,7 +294,10 @@ mongoose
       ? mongoServerSelectionTimeoutMs
       : 10000,
   })
-  .then(() => console.log(`MongoDB Connected: ${mongoose.connection.name || mongoDbName || 'default'}`))
+  .then(() => {
+    console.log(`MongoDB Connected: ${mongoose.connection.name || mongoDbName || 'default'}`);
+    startAutomaticMilestoneWorker();
+  })
   .catch((error) => {
     setLastMongoConnectionError(error);
     console.error('MongoDB connection error:', error);
@@ -320,6 +341,9 @@ const clientSchema = new mongoose.Schema(
     container: { type: String, required: true, trim: true, uppercase: true },
     phone: { type: String, required: true, trim: true },
     notes: { type: String, default: '', trim: true },
+    whatsappOptIn: { type: Boolean, default: false },
+    whatsappOptInAt: { type: Date, default: null },
+    whatsappOptInSource: { type: String, default: 'staff', trim: true },
   },
   { timestamps: true }
 );
@@ -384,10 +408,13 @@ const auditLogSchema = new mongoose.Schema(
 const notificationLogSchema = new mongoose.Schema(
   {
     shipmentId: { type: String, required: true, trim: true, uppercase: true },
+    clientId: { type: String, default: '' },
     clientName: { type: String, required: true },
     phone: { type: String, required: true },
     message: { type: String, required: true },
     channel: { type: String, default: 'whatsapp' },
+    eventType: { type: String, default: 'aden_warehouse_arrival' },
+    notificationKey: { type: String, default: '', index: true },
     status: { type: String, required: true },
     delivered: { type: Boolean, default: false },
     providerMessageId: { type: String, default: '' },
@@ -397,12 +424,28 @@ const notificationLogSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
+const whatsAppMessageSchema = new mongoose.Schema(
+  {
+    providerMessageId: { type: String, required: true, unique: true, trim: true },
+    direction: { type: String, enum: ['inbound', 'outbound'], default: 'inbound' },
+    phone: { type: String, required: true, trim: true },
+    clientId: { type: String, default: '' },
+    clientName: { type: String, default: '' },
+    messageType: { type: String, default: 'text' },
+    text: { type: String, default: '' },
+    messageTimestamp: { type: Date, default: Date.now },
+    rawPayload: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Client = mongoose.model('Client', clientSchema);
 const Shipment = mongoose.model('Shipment', shipmentSchema);
 const News = mongoose.model('News', newsSchema);
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
+const WhatsAppMessage = mongoose.model('WhatsAppMessage', whatsAppMessageSchema);
 
 function buildDefaultMilestones() {
   return milestoneDefinitions.reduce((accumulator, definition) => {
@@ -839,7 +882,7 @@ function buildWhatsAppPayload(client, shipment, message) {
   const to = normalizePhoneForWhatsApp(client.phone);
 
   if (whatsAppTemplateName) {
-    return {
+    const payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to,
@@ -849,17 +892,22 @@ function buildWhatsAppPayload(client, shipment, message) {
         language: {
           code: whatsAppTemplateLanguage,
         },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: client.name },
-              { type: 'text', text: shipment.id },
-            ],
-          },
-        ],
       },
     };
+
+    if (whatsAppTemplateBodyParameters.length) {
+      payload.template.components = [
+        {
+          type: 'body',
+          parameters: whatsAppTemplateBodyParameters.map((parameter) => ({
+            type: 'text',
+            text: renderMessageTemplate(parameter, client, shipment),
+          })),
+        },
+      ];
+    }
+
+    return payload;
   }
 
   return {
@@ -878,6 +926,18 @@ async function sendWhatsAppNotification(client, shipment) {
   const recipientPhone = normalizePhoneForWhatsApp(client.phone);
   const message = buildClientNotificationMessage(client, shipment);
 
+  if (!recipientPhone) {
+    return {
+      to: '',
+      message,
+      delivered: false,
+      status: 'invalid_phone',
+      providerMessageId: '',
+      providerResponse: 'The customer phone number is invalid.',
+      rawPayload: {},
+    };
+  }
+
   if (!whatsAppPhoneNumberId || !whatsAppAccessToken) {
     return {
       to: recipientPhone,
@@ -891,28 +951,41 @@ async function sendWhatsAppNotification(client, shipment) {
   }
 
   const payload = buildWhatsAppPayload(client, shipment, message);
-  const response = await fetch(
-    `https://graph.facebook.com/${graphVersion}/${whatsAppPhoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${whatsAppAccessToken}`,
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-  const data = await response.json().catch(() => ({}));
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${graphVersion}/${whatsAppPhoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${whatsAppAccessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    const data = await response.json().catch(() => ({}));
 
-  return {
-    to: payload.to || recipientPhone,
-    message,
-    delivered: response.ok,
-    status: response.ok ? 'accepted' : 'failed',
-    providerMessageId: data?.messages?.[0]?.id || '',
-    providerResponse: JSON.stringify(data).slice(0, 1000),
-    rawPayload: data,
-  };
+    return {
+      to: payload.to || recipientPhone,
+      message,
+      delivered: response.ok,
+      status: response.ok ? 'accepted' : 'failed',
+      providerMessageId: data?.messages?.[0]?.id || '',
+      providerResponse: JSON.stringify(data).slice(0, 1000),
+      rawPayload: data,
+    };
+  } catch (error) {
+    return {
+      to: payload.to || recipientPhone,
+      message,
+      delivered: false,
+      status: 'network_error',
+      providerMessageId: '',
+      providerResponse: error?.message || 'WhatsApp Cloud API request failed.',
+      rawPayload: {},
+    };
+  }
 }
 
 async function dispatchDeliveryNotifications(shipment, actor) {
@@ -932,13 +1005,61 @@ async function dispatchDeliveryNotifications(shipment, actor) {
   const results = [];
 
   for (const client of clients) {
+    const notificationKey = `aden_warehouse_arrival:${shipment.id}:${client._id}`;
+    const existingDelivery = await NotificationLog.findOne({
+      notificationKey,
+      status: { $in: ['accepted', 'sent', 'delivered', 'read'] },
+    }).sort({ createdAt: -1 });
+
+    if (existingDelivery) {
+      results.push({
+        _id: String(existingDelivery._id),
+        clientName: client.name,
+        phone: existingDelivery.phone,
+        status: 'already_sent',
+        delivered: true,
+        providerResponse: '',
+      });
+      continue;
+    }
+
+    if (!client.whatsappOptIn) {
+      const skippedLog = await NotificationLog.create({
+        shipmentId: shipment.id,
+        clientId: String(client._id),
+        clientName: client.name,
+        phone: normalizePhoneForWhatsApp(client.phone) || client.phone,
+        message: buildClientNotificationMessage(client, shipment),
+        channel: 'whatsapp',
+        eventType: 'aden_warehouse_arrival',
+        notificationKey,
+        status: 'skipped_no_opt_in',
+        delivered: false,
+        providerResponse: 'Customer WhatsApp opt-in is required.',
+        rawPayload: {},
+      });
+
+      results.push({
+        _id: String(skippedLog._id),
+        clientName: client.name,
+        phone: skippedLog.phone,
+        status: skippedLog.status,
+        delivered: false,
+        providerResponse: skippedLog.providerResponse,
+      });
+      continue;
+    }
+
     const deliveryResult = await sendWhatsAppNotification(client, shipment);
     const savedLog = await NotificationLog.create({
       shipmentId: shipment.id,
+      clientId: String(client._id),
       clientName: client.name,
       phone: deliveryResult.to || client.phone,
       message: deliveryResult.message,
       channel: 'whatsapp',
+      eventType: 'aden_warehouse_arrival',
+      notificationKey,
       status: deliveryResult.status,
       delivered: deliveryResult.delivered,
       providerMessageId: deliveryResult.providerMessageId,
@@ -972,6 +1093,210 @@ async function dispatchDeliveryNotifications(shipment, actor) {
   return results;
 }
 
+function getGraphError(data, fallback = 'Meta Graph API request failed.') {
+  return {
+    message: data?.error?.error_data?.details || data?.error?.message || fallback,
+    type: data?.error?.type || '',
+    code: data?.error?.code || null,
+    traceId: data?.error?.fbtrace_id || '',
+  };
+}
+
+async function fetchMetaGraph(pathname) {
+  if (!whatsAppAccessToken) {
+    return {
+      ok: false,
+      status: 0,
+      data: {},
+      error: getGraphError({}, 'WHATSAPP_ACCESS_TOKEN is not configured.'),
+    };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${pathname}`, {
+      headers: { Authorization: `Bearer ${whatsAppAccessToken}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      error: response.ok ? null : getGraphError(data),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: {},
+      error: getGraphError({}, error?.message || 'Meta Graph API request failed.'),
+    };
+  }
+}
+
+async function buildWhatsAppStatus() {
+  const configured = Boolean(
+    whatsAppBusinessAccountId && whatsAppPhoneNumberId && whatsAppAccessToken
+  );
+  const base = {
+    configured,
+    graphVersion,
+    deliveryMode: whatsAppTemplateName ? 'template' : 'text',
+    template: {
+      name: whatsAppTemplateName,
+      language: whatsAppTemplateLanguage,
+      bodyParameters: whatsAppTemplateBodyParameters,
+    },
+    webhook: {
+      verifyTokenConfigured: Boolean(whatsAppVerifyToken),
+      signatureProtected: Boolean(metaAppSecret),
+      callbackUrl: `${publicBaseUrl}/api/webhooks/whatsapp`,
+    },
+    phone: null,
+    businessAccount: null,
+    templateStatus: null,
+    graphApi: {
+      reachable: false,
+      error: configured ? null : { message: 'WhatsApp credentials are incomplete.' },
+    },
+  };
+
+  if (!configured) {
+    return base;
+  }
+
+  const [phoneResult, accountResult, templatesResult] = await Promise.all([
+    fetchMetaGraph(
+      `${whatsAppPhoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,code_verification_status,name_status,status`
+    ),
+    fetchMetaGraph(`${whatsAppBusinessAccountId}?fields=id,name,timezone_id,currency`),
+    whatsAppTemplateName
+      ? fetchMetaGraph(
+          `${whatsAppBusinessAccountId}/message_templates?fields=id,name,status,language,category&limit=100`
+        )
+      : Promise.resolve({ ok: true, data: { data: [] }, error: null }),
+  ]);
+
+  base.graphApi.reachable = phoneResult.ok && accountResult.ok;
+  base.graphApi.error = phoneResult.error || accountResult.error || templatesResult.error || null;
+  base.phone = phoneResult.ok
+    ? {
+        id: phoneResult.data.id,
+        displayPhoneNumber: phoneResult.data.display_phone_number || '',
+        verifiedName: phoneResult.data.verified_name || '',
+        qualityRating: phoneResult.data.quality_rating || '',
+        status: phoneResult.data.status || phoneResult.data.code_verification_status || '',
+        nameStatus: phoneResult.data.name_status || '',
+      }
+    : null;
+  base.businessAccount = accountResult.ok
+    ? {
+        id: accountResult.data.id,
+        name: accountResult.data.name || '',
+        timezoneId: accountResult.data.timezone_id ?? null,
+        currency: accountResult.data.currency || '',
+      }
+    : null;
+
+  if (whatsAppTemplateName && templatesResult.ok) {
+    const template = (templatesResult.data?.data || []).find(
+      (item) =>
+        item.name === whatsAppTemplateName &&
+        item.language === whatsAppTemplateLanguage
+    );
+    base.templateStatus = template
+      ? {
+          id: template.id,
+          name: template.name,
+          language: template.language,
+          category: template.category,
+          status: template.status,
+        }
+      : {
+          name: whatsAppTemplateName,
+          language: whatsAppTemplateLanguage,
+          status: 'NOT_FOUND',
+        };
+  }
+
+  return base;
+}
+
+let automaticMilestoneRunActive = false;
+let automaticMilestoneTimer = null;
+
+async function processAutomaticMilestoneCompletions() {
+  if (automaticMilestoneRunActive || !isDatabaseConnected()) {
+    return;
+  }
+
+  automaticMilestoneRunActive = true;
+  try {
+    const today = getTodayInAppTimeZone();
+    const shipments = await Shipment.find({
+      [`milestones.${finalMilestoneKey}.estimatedDate`]: { $lte: today, $ne: '' },
+    });
+
+    for (const shipment of shipments) {
+      const rawFinalState = shipment.milestones?.[finalMilestoneKey] || {};
+      if (rawFinalState.completed) {
+        continue;
+      }
+
+      const milestones = normalizeMilestones(
+        shipment.milestones,
+        shipment.status,
+        shipment.updatedAt
+      );
+      if (!milestones[finalMilestoneKey]?.completed) {
+        continue;
+      }
+
+      const currentStatus = deriveShipmentStatus(milestones);
+      shipment.milestones = milestones;
+      shipment.status = currentStatus.en;
+      shipment.history = shipment.history || [];
+      shipment.history.unshift({
+        at: new Date(),
+        actorId: 'system',
+        actorName: 'automatic-milestone-worker',
+        note: 'Automatic completion from the approximate milestone date.',
+        location: shipment.location,
+        statusAr: currentStatus.ar,
+        milestoneStates: milestones,
+      });
+      shipment.history = shipment.history.slice(0, maxShipmentHistoryItems);
+      await shipment.save();
+
+      await dispatchDeliveryNotifications(shipment, null);
+      await writeAuditLog(
+        'إكمال تلقائي',
+        'الشحنات',
+        `تم إكمال الشحنة ${shipment.id} تلقائيًا حسب التاريخ التقريبي`,
+        null,
+        { trackingNumber: shipment.id, stageKey: finalMilestoneKey }
+      );
+    }
+  } catch (error) {
+    console.error('Automatic milestone processing error:', error?.message || error);
+  } finally {
+    automaticMilestoneRunActive = false;
+  }
+}
+
+function startAutomaticMilestoneWorker() {
+  if (automaticMilestoneTimer) {
+    return;
+  }
+
+  processAutomaticMilestoneCompletions();
+  automaticMilestoneTimer = setInterval(
+    processAutomaticMilestoneCompletions,
+    automaticMilestoneIntervalMs
+  );
+  automaticMilestoneTimer.unref?.();
+}
+
 function escapeCsvValue(value) {
   const stringValue = String(value ?? '');
   if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
@@ -996,6 +1321,7 @@ function buildClientExportRows(clients) {
     'اسم العميل': client.name,
     'رقم الحاوية': client.container,
     'رقم الهاتف': client.phone,
+    'موافقة واتساب': client.whatsappOptIn ? 'نعم' : 'لا',
     'ملاحظات': client.notes || '',
     'تاريخ الإضافة': client.createdAt ? new Date(client.createdAt).toLocaleDateString('ar-EG') : '',
   }));
@@ -1008,6 +1334,7 @@ function buildExcelWorkbook(rows) {
       'اسم العميل': '',
       'رقم الحاوية': '',
       'رقم الهاتف': '',
+      'موافقة واتساب': '',
       'ملاحظات': '',
       'تاريخ الإضافة': '',
     }
@@ -1386,6 +1713,37 @@ app.delete('/api/shipments/:trackingNumber', requireAuth, deleteShipmentRecord);
 
 app.delete('/api/shipment/:trackingNumber', requireAuth, deleteShipmentRecord);
 
+app.post('/api/shipments/:trackingNumber/notifications', requireAuth, async (req, res) => {
+  const trackingNumber = normalizeTrackingId(req.params.trackingNumber);
+  const shipment = await Shipment.findOne({ id: trackingNumber });
+
+  if (!shipment) {
+    return res.status(404).json({ message: 'Shipment not found.' });
+  }
+
+  const milestones = normalizeMilestones(
+    shipment.milestones,
+    shipment.status,
+    shipment.updatedAt
+  );
+  if (!milestones[finalMilestoneKey]?.completed) {
+    return res.status(409).json({
+      message: 'Delivery notifications are available only after the final milestone is completed.',
+    });
+  }
+
+  const notifications = await dispatchDeliveryNotifications(shipment, req.user);
+  await writeAuditLog(
+    'إعادة محاولة إشعار',
+    'الإشعارات',
+    `تم تشغيل إشعارات الوصول للحاوية ${shipment.id}`,
+    req.user,
+    { shipmentId: shipment.id, notificationCount: notifications.length }
+  );
+
+  res.json({ notifications });
+});
+
 app.get('/api/clients', requireAuth, async (req, res) => {
   const clients = await Client.find().sort({ createdAt: -1 });
   res.json(clients);
@@ -1394,14 +1752,29 @@ app.get('/api/clients', requireAuth, async (req, res) => {
 app.post('/api/clients', requireAuth, async (req, res) => {
   const name = String(req.body?.name || '').trim();
   const container = normalizeTrackingId(req.body?.container);
-  const phone = String(req.body?.phone || '').trim();
+  const phone = normalizePhoneForWhatsApp(req.body?.phone);
   const notes = String(req.body?.notes || '').trim();
+  const whatsappOptIn = req.body?.whatsappOptIn === true;
+  const whatsappOptInSource = String(req.body?.whatsappOptInSource || 'staff').trim();
 
   if (!name || !container || !phone) {
     return res.status(400).json({ message: 'Name, container and phone are required.' });
   }
 
-  const client = await Client.create({ name, container, phone, notes });
+  const duplicate = await Client.findOne({ container, phone });
+  if (duplicate) {
+    return res.status(409).json({ message: 'This phone number is already linked to the same container.' });
+  }
+
+  const client = await Client.create({
+    name,
+    container,
+    phone,
+    notes,
+    whatsappOptIn,
+    whatsappOptInAt: whatsappOptIn ? new Date() : null,
+    whatsappOptInSource,
+  });
 
   await writeAuditLog('إضافة', 'العملاء', `تمت إضافة العميل ${name}`, req.user, {
     clientId: String(client._id),
@@ -1411,21 +1784,41 @@ app.post('/api/clients', requireAuth, async (req, res) => {
 });
 
 app.put('/api/clients/:id', requireAuth, async (req, res) => {
+  const currentClient = await Client.findById(req.params.id);
+  if (!currentClient) {
+    return res.status(404).json({ message: 'Client not found.' });
+  }
+
+  const whatsappOptIn = req.body?.whatsappOptIn === true;
   const payload = {
     name: String(req.body?.name || '').trim(),
     container: normalizeTrackingId(req.body?.container),
-    phone: String(req.body?.phone || '').trim(),
+    phone: normalizePhoneForWhatsApp(req.body?.phone),
     notes: String(req.body?.notes || '').trim(),
+    whatsappOptIn,
+    whatsappOptInAt:
+      whatsappOptIn && currentClient.whatsappOptInAt
+        ? currentClient.whatsappOptInAt
+        : whatsappOptIn
+          ? new Date()
+          : null,
+    whatsappOptInSource: String(req.body?.whatsappOptInSource || 'staff').trim(),
   };
 
   if (!payload.name || !payload.container || !payload.phone) {
     return res.status(400).json({ message: 'Name, container and phone are required.' });
   }
 
-  const client = await Client.findByIdAndUpdate(req.params.id, payload, { new: true });
-  if (!client) {
-    return res.status(404).json({ message: 'Client not found.' });
+  const duplicate = await Client.findOne({
+    _id: { $ne: req.params.id },
+    container: payload.container,
+    phone: payload.phone,
+  });
+  if (duplicate) {
+    return res.status(409).json({ message: 'This phone number is already linked to the same container.' });
   }
+
+  const client = await Client.findByIdAndUpdate(req.params.id, payload, { new: true });
 
   await writeAuditLog('تعديل', 'العملاء', `تم تعديل العميل ${client.name}`, req.user, {
     clientId: String(client._id),
@@ -1450,7 +1843,15 @@ app.delete('/api/clients/:id', requireAuth, async (req, res) => {
 app.get('/api/clients/export/csv', requireAuth, async (req, res) => {
   const clients = await Client.find().sort({ createdAt: 1 });
   const rows = buildClientExportRows(clients);
-  const headers = Object.keys(rows[0] || { '#': '', 'اسم العميل': '', 'رقم الحاوية': '', 'رقم الهاتف': '', 'ملاحظات': '', 'تاريخ الإضافة': '' });
+  const headers = Object.keys(rows[0] || {
+    '#': '',
+    'اسم العميل': '',
+    'رقم الحاوية': '',
+    'رقم الهاتف': '',
+    'موافقة واتساب': '',
+    'ملاحظات': '',
+    'تاريخ الإضافة': '',
+  });
   const csv = [
     headers.join(','),
     ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(',')),
@@ -1564,10 +1965,50 @@ app.get('/api/logs', requireAuth, async (req, res) => {
   res.json(logs);
 });
 
+app.get('/api/whatsapp/status', requireAuth, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await buildWhatsAppStatus());
+});
+
+app.get('/api/whatsapp/messages', requireAuth, async (req, res) => {
+  const messages = await WhatsAppMessage.find().sort({ messageTimestamp: -1 }).limit(200);
+  res.json(messages);
+});
+
 app.get('/api/notifications', requireAuth, async (req, res) => {
   const notifications = await NotificationLog.find().sort({ createdAt: -1 }).limit(200);
   res.json(notifications);
 });
+
+function hasValidMetaWebhookSignature(req) {
+  if (!metaAppSecret) {
+    return true;
+  }
+
+  const signature = String(req.get('x-hub-signature-256') || '');
+  const expected = `sha256=${crypto
+    .createHmac('sha256', metaAppSecret)
+    .update(req.rawBody || Buffer.from(''))
+    .digest('hex')}`;
+
+  if (signature.length !== expected.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+function readIncomingWhatsAppText(message) {
+  return String(
+    message?.text?.body ||
+      message?.button?.text ||
+      message?.interactive?.button_reply?.title ||
+      message?.interactive?.list_reply?.title ||
+      message?.image?.caption ||
+      message?.document?.caption ||
+      `[${message?.type || 'message'}]`
+  ).trim();
+}
 
 app.get('/api/webhooks/whatsapp', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -1582,6 +2023,10 @@ app.get('/api/webhooks/whatsapp', (req, res) => {
 });
 
 app.post('/api/webhooks/whatsapp', async (req, res) => {
+  if (!hasValidMetaWebhookSignature(req)) {
+    return res.sendStatus(401);
+  }
+
   const entries = Array.isArray(req.body?.entry) ? req.body.entry : [];
 
   for (const entry of entries) {
@@ -1610,6 +2055,31 @@ app.post('/api/webhooks/whatsapp', async (req, res) => {
       }
 
       for (const message of messages) {
+        const phone = normalizePhoneForWhatsApp(message.from);
+        const client = phone ? await Client.findOne({ phone }).sort({ updatedAt: -1 }) : null;
+        const messageTimestamp = Number(message.timestamp);
+
+        if (message.id && phone) {
+          await WhatsAppMessage.findOneAndUpdate(
+            { providerMessageId: message.id },
+            {
+              $setOnInsert: {
+                direction: 'inbound',
+                phone,
+                clientId: client ? String(client._id) : '',
+                clientName: client?.name || '',
+                messageType: message.type || 'text',
+                text: readIncomingWhatsAppText(message),
+                messageTimestamp: Number.isFinite(messageTimestamp)
+                  ? new Date(messageTimestamp * 1000)
+                  : new Date(),
+                rawPayload: message,
+              },
+            },
+            { upsert: true }
+          );
+        }
+
         await writeAuditLog(
           'وارد واتساب',
           'الإشعارات',

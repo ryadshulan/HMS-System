@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:milestones",
+    "test": "npm run test:milestones && npm run test:whatsapp",
     "test:milestones": "node tests/milestone-dates.integration.js",
+    "test:whatsapp": "node tests/whatsapp-crm.integration.js",
     "start": "node server.js"
   },
   "keywords": [],

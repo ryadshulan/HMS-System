@@ -100,6 +100,8 @@ function makeClientForm(current = null) {
     container: current?.container || '',
     phone: current?.phone || '',
     notes: current?.notes || '',
+    whatsappOptIn: current?.whatsappOptIn ?? false,
+    whatsappOptInSource: current?.whatsappOptInSource || 'staff',
   };
 }
 
@@ -137,6 +139,13 @@ function getTodayInAden() {
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isShipmentDelivered(shipment, milestones) {
+  const finalStageKey = milestones.length
+    ? milestones[milestones.length - 1].key
+    : 'adenWarehouse';
+  return Boolean(shipment?.milestones?.[finalStageKey]?.completed);
 }
 
 function deriveMilestoneSequence(definitions, milestoneState) {
@@ -239,6 +248,8 @@ function App() {
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [whatsappStatus, setWhatsappStatus] = useState(null);
+  const [whatsappMessages, setWhatsappMessages] = useState([]);
   const [shipmentSearch, setShipmentSearch] = useState('');
   const [toasts, setToasts] = useState([]);
   const [uiHistory, setUiHistory] = useState(getStoredUiHistory());
@@ -394,6 +405,8 @@ function App() {
         apiRequest('/api/news'),
         apiRequest('/api/logs'),
         apiRequest('/api/notifications'),
+        apiRequest('/api/whatsapp/status'),
+        apiRequest('/api/whatsapp/messages'),
       ];
 
       if (currentUser.role === 'admin' || currentUser.role === 'manager') {
@@ -402,13 +415,24 @@ function App() {
         requests.push(Promise.resolve([]));
       }
 
-      const [shipmentsData, clientsData, newsData, logsData, notificationsData, usersData] = await Promise.all(requests);
+      const [
+        shipmentsData,
+        clientsData,
+        newsData,
+        logsData,
+        notificationsData,
+        whatsappStatusData,
+        whatsappMessagesData,
+        usersData,
+      ] = await Promise.all(requests);
 
       setShipments(shipmentsData);
       setClients(clientsData);
       setNewsList(newsData);
       setLogs(logsData);
       setNotifications(notificationsData);
+      setWhatsappStatus(whatsappStatusData);
+      setWhatsappMessages(whatsappMessagesData);
       setUsers(usersData);
       setMilestones(milestoneData);
     } catch (error) {
@@ -598,6 +622,30 @@ function App() {
       await loadAllData();
     } catch (error) {
       pushToast('error', 'تعذر حذف الشحنة', error.message);
+    }
+  }
+
+  async function handleNotifyShipment(shipment) {
+    if (!window.confirm(`إرسال إشعار وصول الحاوية ${shipment.id} للعملاء الموافقين المرتبطين بها؟`)) {
+      return;
+    }
+
+    try {
+      const data = await apiRequest(`/api/shipments/${shipment.id}/notifications`, {
+        method: 'POST',
+      });
+      const results = Array.isArray(data.notifications) ? data.notifications : [];
+      const deliveredCount = results.filter((item) => item.delivered).length;
+      const failedCount = results.length - deliveredCount;
+      pushUiHistory('إشعارات واتساب', `الحاوية ${shipment.id}: ناجح ${deliveredCount}، غير مرسل ${failedCount}`);
+      pushToast(
+        failedCount ? 'warning' : 'success',
+        'تم تشغيل إشعارات الوصول',
+        `ناجح أو مرسل مسبقًا: ${deliveredCount}، غير مرسل: ${failedCount}.`
+      );
+      await loadAllData();
+    } catch (error) {
+      pushToast('error', 'تعذر إرسال الإشعارات', error.message);
     }
   }
 
@@ -1005,6 +1053,45 @@ function App() {
                 </div>
               </div>
 
+              <div className="card">
+                <div className="toolbar">
+                  <div>
+                    <h3>حالة Meta WhatsApp Cloud API</h3>
+                    <span className="muted">فحص مباشر وآمن للرقم والقالب وWebhook دون عرض الرموز السرية.</span>
+                  </div>
+                  <span className=${`badge ${whatsappStatus?.graphApi?.reachable ? 'success' : 'warning'}`}>
+                    ${whatsappStatus?.graphApi?.reachable ? 'متصل' : 'يحتاج إجراء'}
+                  </span>
+                </div>
+                <div className="whatsapp-status-grid">
+                  <div>
+                    <span className="muted">طريقة الإرسال</span>
+                    <strong>${whatsappStatus?.deliveryMode === 'template' ? 'قالب معتمد' : 'رسالة نصية'}</strong>
+                  </div>
+                  <div>
+                    <span className="muted">القالب</span>
+                    <strong>
+                      ${whatsappStatus?.template?.name || 'غير محدد'}
+                      ${whatsappStatus?.templateStatus?.status ? ` • ${whatsappStatus.templateStatus.status}` : ''}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="muted">رقم الإرسال</span>
+                    <strong>${whatsappStatus?.phone?.displayPhoneNumber || 'غير متاح'}</strong>
+                  </div>
+                  <div>
+                    <span className="muted">حماية Webhook</span>
+                    <strong>${whatsappStatus?.webhook?.signatureProtected ? 'مفعلة' : 'تحتاج META_APP_SECRET'}</strong>
+                  </div>
+                </div>
+                ${whatsappStatus?.graphApi?.error?.message
+                  ? html`<div className="integration-warning">
+                      <i className="fas fa-triangle-exclamation"></i>
+                      <span>${whatsappStatus.graphApi.error.message}</span>
+                    </div>`
+                  : null}
+              </div>
+
               <div className="grid-2">
                 <div className="card">
                   <div className="toolbar">
@@ -1250,6 +1337,16 @@ function App() {
                                 <td>${formatDate(shipment.updatedAt)}</td>
                                 <td>
                                   <div className="table-actions">
+                                    ${isShipmentDelivered(shipment, milestones)
+                                      ? html`<button
+                                          className="btn btn-success"
+                                          type="button"
+                                          title="إرسال أو إعادة محاولة إشعارات واتساب"
+                                          onClick=${() => handleNotifyShipment(shipment)}
+                                        >
+                                          <i className="fab fa-whatsapp"></i>
+                                        </button>`
+                                      : null}
                                     <button className="btn btn-warning" type="button" onClick=${() => handleEditShipment(shipment)}>
                                       <i className="fas fa-pen"></i>
                                     </button>
@@ -1312,6 +1409,21 @@ function App() {
                       onInput=${(event) => setClientForm((current) => ({ ...current, notes: event.target.value }))}
                     />
                   </div>
+                  <label className="consent-row">
+                    <input
+                      type="checkbox"
+                      checked=${clientForm.whatsappOptIn}
+                      onChange=${(event) =>
+                        setClientForm((current) => ({
+                          ...current,
+                          whatsappOptIn: event.target.checked,
+                        }))}
+                    />
+                    <span>
+                      <strong>العميل وافق على استلام إشعارات واتساب</strong>
+                      <small>مطلوب قبل إرسال إشعارات الوصول التلقائية وفق سياسات Meta.</small>
+                    </span>
+                  </label>
                   <div className="button-row" style=${{ marginTop: '18px' }}>
                     <button className="btn btn-primary" type="submit">
                       <i className="fas fa-user-plus"></i>
@@ -1334,6 +1446,7 @@ function App() {
                         <th>الاسم</th>
                         <th>رقم الحاوية</th>
                         <th>الهاتف</th>
+                        <th>واتساب</th>
                         <th>ملاحظات</th>
                         <th>إجراء</th>
                       </tr>
@@ -1346,6 +1459,11 @@ function App() {
                                 <td>${client.name}</td>
                                 <td><span className="badge">${client.container}</span></td>
                                 <td>${client.phone}</td>
+                                <td>
+                                  <span className=${`badge ${client.whatsappOptIn ? 'success' : 'warning'}`}>
+                                    ${client.whatsappOptIn ? 'موافق' : 'غير موافق'}
+                                  </span>
+                                </td>
                                 <td>${client.notes || '-'}</td>
                                 <td>
                                   <div className="table-actions">
@@ -1360,7 +1478,42 @@ function App() {
                               </tr>
                             `
                           )
-                        : html`<tr><td colspan="5"><${EmptyState}>لا يوجد عملاء حتى الآن.<//></td></tr>`}
+                        : html`<tr><td colspan="6"><${EmptyState}>لا يوجد عملاء حتى الآن.<//></td></tr>`}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="toolbar">
+                  <div>
+                    <h3>رسائل واتساب الواردة</h3>
+                    <span className="muted">تُربط الرسالة تلقائيًا بسجل العميل عند تطابق رقم الهاتف.</span>
+                  </div>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>الوقت</th>
+                        <th>العميل</th>
+                        <th>الهاتف</th>
+                        <th>الرسالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${whatsappMessages.length
+                        ? whatsappMessages.map(
+                            (message) => html`
+                              <tr key=${message._id}>
+                                <td>${formatDate(message.messageTimestamp || message.createdAt)}</td>
+                                <td>${message.clientName || 'رقم غير مسجل'}</td>
+                                <td>${message.phone}</td>
+                                <td>${message.text || `[${message.messageType}]`}</td>
+                              </tr>
+                            `
+                          )
+                        : html`<tr><td colspan="4"><${EmptyState}>لا توجد رسائل واتساب واردة بعد.<//></td></tr>`}
                     </tbody>
                   </table>
                 </div>

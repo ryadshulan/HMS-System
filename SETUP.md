@@ -26,12 +26,14 @@ APP_TIMEZONE=Asia/Aden
 Fill these values in `.env` or Render environment variables:
 
 ```env
+META_APP_SECRET=
 WHATSAPP_BUSINESS_ACCOUNT_ID=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_VERIFY_TOKEN=
-WHATSAPP_TEMPLATE_NAME=
-WHATSAPP_TEMPLATE_LANGUAGE=ar
+WHATSAPP_TEMPLATE_NAME=hello
+WHATSAPP_TEMPLATE_LANGUAGE=en
+WHATSAPP_TEMPLATE_BODY_PARAMETERS=
 WHATSAPP_DELIVERY_MESSAGE=وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.
 WHATSAPP_DEFAULT_COUNTRY_CODE=967
 ```
@@ -54,10 +56,14 @@ https://YOUR-RENDER-DOMAIN/api/webhooks/whatsapp
 ### Important
 
 - If you send proactive business messages outside the customer service window, use an approved message template
-- If `WHATSAPP_TEMPLATE_NAME` is empty, the system sends a plain text message payload
+- `WHATSAPP_TEMPLATE_NAME` and `WHATSAPP_TEMPLATE_LANGUAGE` must exactly match an approved Meta template
+- Keep `WHATSAPP_TEMPLATE_BODY_PARAMETERS` empty for a static template. For a template with variables, use a comma-separated list such as `{name},{container}`
+- If `WHATSAPP_TEMPLATE_NAME` is empty, the system sends a plain text message payload, which is suitable only inside the customer-service window
 - `WHATSAPP_DELIVERY_MESSAGE` controls the default delivery message. It supports `{name}` and `{container}` placeholders if you want personalized text
 - `WHATSAPP_DEFAULT_COUNTRY_CODE` is used when staff enter local phone numbers without an international country code
 - For production notification flows, approved templates are the safer path
+- Set `META_APP_SECRET` to verify the `X-Hub-Signature-256` signature on incoming webhook events
+- Mark WhatsApp opt-in on each customer record before sending proactive delivery notifications
 
 ## 4. Image Uploads
 
