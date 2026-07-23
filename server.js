@@ -266,7 +266,11 @@ app.use(
     maxAge: isProduction ? '1h' : 0,
     etag: true,
     setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) {
+      if (
+        filePath.endsWith('.html') ||
+        filePath.endsWith('admin-app.mjs') ||
+        filePath.endsWith('admin.css')
+      ) {
         res.setHeader('Cache-Control', 'no-store');
       }
     },
