@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run test:milestones",
+    "test:milestones": "node tests/milestone-dates.integration.js",
     "start": "node server.js"
   },
   "keywords": [],

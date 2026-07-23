@@ -351,6 +351,16 @@
             color: #697b84;
         }
 
+        .estimated-date {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 7px;
+            color: #829098;
+            font-size: 0.82rem;
+            font-weight: 500;
+        }
+
         .section {
             padding: 80px 5%;
         }
@@ -614,6 +624,12 @@
                                 </span>
                             </div>
                             <p>${escapeHtml(step.labelAr)}</p>
+                            ${step.estimatedDate ? `
+                                <div class="estimated-date">
+                                    <i class="far fa-calendar-alt"></i>
+                                    <span>التاريخ التقريبي: ${escapeHtml(formatApproximateDate(step.estimatedDate))}</span>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -627,7 +643,7 @@
                                 <span>${escapeHtml(shipment.statusAr || shipment.status || '')}</span>
                             </span>
                         </div>
-                        <div class="tracking-location">آخر تحديث: ${new Date(shipment.updatedAt).toLocaleString('ar-EG')} ${shipment.location ? `• الموقع: ${escapeHtml(shipment.location)}` : ''}</div>
+                        ${shipment.location ? `<div class="tracking-location">الموقع الحالي: ${escapeHtml(shipment.location)}</div>` : ''}
                         ${shipment.updateNote ? `<div class="tracking-note"><strong>ملاحظة التحديث:</strong> ${escapeHtml(shipment.updateNote)}</div>` : ''}
                         <div class="milestone-stepper">
                             ${stepsHtml}
@@ -679,6 +695,24 @@
 
         function escapeAttribute(value) {
             return escapeHtml(value);
+        }
+
+        function formatApproximateDate(value) {
+            if (!value) {
+                return '';
+            }
+
+            const date = new Date(`${value}T12:00:00Z`);
+            if (Number.isNaN(date.getTime())) {
+                return value;
+            }
+
+            return new Intl.DateTimeFormat('ar-YE', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                timeZone: 'Asia/Aden',
+            }).format(date);
         }
 
         window.onload = () => {

@@ -58,6 +58,7 @@ const whatsAppTemplateName = readEnvValue('WHATSAPP_TEMPLATE_NAME');
 const whatsAppTemplateLanguage = readEnvValue('WHATSAPP_TEMPLATE_LANGUAGE', 'ar');
 const whatsAppDeliveryMessage = readEnvValue('WHATSAPP_DELIVERY_MESSAGE', defaultWhatsAppDeliveryMessage);
 const whatsAppDefaultCountryCode = readEnvValue('WHATSAPP_DEFAULT_COUNTRY_CODE', '967').replace(/\D/g, '');
+const appTimeZone = readEnvValue('APP_TIMEZONE', 'Asia/Aden');
 const mongoServerSelectionTimeoutMs = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000);
 const requireDatabase = process.env.REQUIRE_DB === 'true' || isProduction;
 const allowedCorsOrigins = new Set(
@@ -101,7 +102,7 @@ const milestoneDefinitions = [
   },
   {
     key: 'adenArrival',
-    titleAr: 'وصول عدن',
+    titleAr: 'وصول ميناء عدن',
     icon: 'fa-anchor',
     pendingEn: 'In-transit to Aden Port',
     completedEn: 'Vessel Arrived at Aden Port',
@@ -407,6 +408,9 @@ function buildDefaultMilestones() {
   return milestoneDefinitions.reduce((accumulator, definition) => {
     accumulator[definition.key] = {
       completed: false,
+      manualCompleted: false,
+      autoCompleted: false,
+      estimatedDate: '',
       updatedAt: null,
     };
     return accumulator;
@@ -443,23 +447,65 @@ function normalizePhoneForWhatsApp(value) {
   return phone;
 }
 
+function normalizeEstimatedDate(value) {
+  const dateValue = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return '';
+  }
+
+  const parsedDate = new Date(`${dateValue}T00:00:00.000Z`);
+  return Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== dateValue
+    ? ''
+    : dateValue;
+}
+
+function getTodayInAppTimeZone() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: appTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isEstimatedDateReached(estimatedDate, today = getTodayInAppTimeZone()) {
+  return Boolean(estimatedDate && estimatedDate <= today);
+}
+
 function readMilestoneState(value, fallbackUpdatedAt = null) {
   if (typeof value === 'boolean') {
     return {
       completed: value,
+      manualCompleted: value,
+      autoCompleted: false,
+      estimatedDate: '',
       updatedAt: value ? fallbackUpdatedAt || new Date() : null,
     };
   }
 
   if (value && typeof value === 'object') {
+    const estimatedDate = normalizeEstimatedDate(value.estimatedDate || value.expectedDate);
+    const manualCompleted =
+      typeof value.manualCompleted === 'boolean'
+        ? value.manualCompleted
+        : Boolean(value.completed && !value.autoCompleted);
+
     return {
-      completed: Boolean(value.completed),
-      updatedAt: value.completed ? value.updatedAt || fallbackUpdatedAt || new Date() : null,
+      completed: manualCompleted,
+      manualCompleted,
+      autoCompleted: false,
+      estimatedDate,
+      updatedAt: manualCompleted ? value.updatedAt || fallbackUpdatedAt || new Date() : null,
     };
   }
 
   return {
     completed: false,
+    manualCompleted: false,
+    autoCompleted: false,
+    estimatedDate: '',
     updatedAt: null,
   };
 }
@@ -473,18 +519,48 @@ function normalizeMilestones(input, legacyStatus = '', updatedAt = null) {
     });
   }
 
-  const hasCompletedState = Object.values(normalized).some((state) => state.completed);
-  if (!hasCompletedState) {
+  const hasMilestoneState = Object.values(normalized).some(
+    (state) => state.manualCompleted || state.estimatedDate
+  );
+  if (!hasMilestoneState) {
     const completionIndex = legacyStatusCompletionIndex.get(String(legacyStatus || '').trim()) ?? -1;
     milestoneDefinitions.forEach((definition, index) => {
       if (index <= completionIndex) {
         normalized[definition.key] = {
           completed: true,
+          manualCompleted: true,
+          autoCompleted: false,
+          estimatedDate: '',
           updatedAt: updatedAt || new Date(),
         };
       }
     });
   }
+
+  const today = getTodayInAppTimeZone();
+  const highestCompletedIndex = milestoneDefinitions.reduce((highestIndex, definition, index) => {
+    const state = normalized[definition.key];
+    return state.manualCompleted || isEstimatedDateReached(state.estimatedDate, today)
+      ? index
+      : highestIndex;
+  }, -1);
+
+  milestoneDefinitions.forEach((definition, index) => {
+    const state = normalized[definition.key];
+    const completed = index <= highestCompletedIndex;
+    const autoCompleted = completed && !state.manualCompleted;
+
+    normalized[definition.key] = {
+      ...state,
+      completed,
+      autoCompleted,
+      updatedAt:
+        state.updatedAt ||
+        (autoCompleted && state.estimatedDate
+          ? new Date(`${state.estimatedDate}T00:00:00.000Z`)
+          : null),
+    };
+  });
 
   return normalized;
 }
@@ -525,6 +601,9 @@ function buildMilestoneSequence(milestones) {
     return {
       ...definition,
       completed,
+      manualCompleted: Boolean(state.manualCompleted),
+      autoCompleted: Boolean(state.autoCompleted),
+      estimatedDate: state.estimatedDate || '',
       visualState,
       updatedAt: state.updatedAt || null,
       labelAr: completed ? definition.completedAr : definition.pendingAr,

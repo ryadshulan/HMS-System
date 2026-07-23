@@ -75,7 +75,11 @@ function makeShipmentForm(milestones, current = null) {
   const milestoneState = milestones.reduce((accumulator, definition) => {
     const currentState = current?.milestones?.[definition.key];
     accumulator[definition.key] = {
-      completed: Boolean(currentState?.completed),
+      manualCompleted:
+        typeof currentState?.manualCompleted === 'boolean'
+          ? currentState.manualCompleted
+          : Boolean(currentState?.completed && !currentState?.autoCompleted),
+      estimatedDate: currentState?.estimatedDate || '',
     };
     return accumulator;
   }, {});
@@ -124,15 +128,37 @@ function makeUserForm(current = null) {
   };
 }
 
+function getTodayInAden() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Aden',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 function deriveMilestoneSequence(definitions, milestoneState) {
-  const firstIncompleteIndex = definitions.findIndex((definition) => !Boolean(milestoneState[definition.key]?.completed));
+  const todayValue = getTodayInAden();
+  const highestCompletedIndex = definitions.reduce((highestIndex, definition, index) => {
+    const state = milestoneState[definition.key] || {};
+    const dateReached = Boolean(state.estimatedDate && state.estimatedDate <= todayValue);
+    return state.manualCompleted || dateReached ? index : highestIndex;
+  }, -1);
+  const firstIncompleteIndex =
+    highestCompletedIndex >= definitions.length - 1 ? -1 : highestCompletedIndex + 1;
   const currentIndex = firstIncompleteIndex === -1 ? definitions.length : firstIncompleteIndex;
 
   return definitions.map((definition, index) => {
-    const completed = Boolean(milestoneState[definition.key]?.completed);
+    const state = milestoneState[definition.key] || {};
+    const completed = index <= highestCompletedIndex;
     return {
       ...definition,
       completed,
+      manualCompleted: Boolean(state.manualCompleted),
+      autoCompleted: completed && !state.manualCompleted,
+      estimatedDate: state.estimatedDate || '',
       visualState: completed ? 'completed' : index === currentIndex ? 'current' : 'upcoming',
     };
   });
@@ -467,21 +493,43 @@ function App() {
 
       milestones.forEach((definition, index) => {
         if (checked && index < currentIndex) {
-          nextMilestones[definition.key] = { completed: true };
+          nextMilestones[definition.key] = {
+            ...nextMilestones[definition.key],
+            manualCompleted: true,
+          };
         }
 
         if (!checked && index > currentIndex) {
-          nextMilestones[definition.key] = { completed: false };
+          nextMilestones[definition.key] = {
+            ...nextMilestones[definition.key],
+            manualCompleted: false,
+          };
         }
       });
 
-      nextMilestones[stageKey] = { completed: checked };
+      nextMilestones[stageKey] = {
+        ...nextMilestones[stageKey],
+        manualCompleted: checked,
+      };
 
       return {
         ...current,
         milestones: nextMilestones,
       };
     });
+  }
+
+  function updateShipmentMilestoneDate(stageKey, estimatedDate) {
+    setShipmentForm((current) => ({
+      ...current,
+      milestones: {
+        ...current.milestones,
+        [stageKey]: {
+          ...current.milestones[stageKey],
+          estimatedDate,
+        },
+      },
+    }));
   }
 
   async function handleSaveShipment(event) {
@@ -1112,15 +1160,26 @@ function App() {
                             <label className="toggle">
                               <input
                                 type="checkbox"
-                                checked=${step.completed}
+                                checked=${step.manualCompleted}
                                 onChange=${(event) => updateShipmentMilestone(step.key, event.target.checked)}
                               />
-                              <span>تمت</span>
+                              <span>مكتملة يدويًا</span>
                             </label>
                           </div>
                           <div className=${`status-tag ${step.visualState}`}>
                             ${step.visualState === 'completed' ? 'مكتملة' : step.visualState === 'current' ? 'جارية' : 'قادمة'}
                           </div>
+                          <label className="milestone-date-field">
+                            <span>التاريخ المتوقع <small>(تقريبي)</small></span>
+                            <input
+                              type="date"
+                              value=${step.estimatedDate}
+                              onInput=${(event) => updateShipmentMilestoneDate(step.key, event.target.value)}
+                            />
+                          </label>
+                          ${step.autoCompleted
+                            ? html`<div className="milestone-auto-note"><i className="fas fa-calendar-check"></i> اكتملت تلقائيًا لأن التاريخ التقريبي قد وصل.</div>`
+                            : null}
                           <p className="muted"><strong>قبل التأكيد:</strong> ${step.pendingAr}</p>
                           <p className="muted"><strong>بعد التأكيد:</strong> ${step.completedAr}</p>
                         </div>
