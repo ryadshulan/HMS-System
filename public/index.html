@@ -214,11 +214,6 @@
             font-weight: 700;
         }
 
-        .tracking-location {
-            margin-bottom: 14px;
-            color: var(--muted-color);
-        }
-
         .tracking-note {
             padding: 12px 14px;
             border-radius: 14px;
@@ -643,7 +638,6 @@
                                 <span>${escapeHtml(shipment.statusAr || shipment.status || '')}</span>
                             </span>
                         </div>
-                        ${shipment.location ? `<div class="tracking-location">الموقع الحالي: ${escapeHtml(shipment.location)}</div>` : ''}
                         ${shipment.updateNote ? `<div class="tracking-note"><strong>ملاحظة التحديث:</strong> ${escapeHtml(shipment.updateNote)}</div>` : ''}
                         <div class="milestone-stepper">
                             ${stepsHtml}
@@ -660,7 +654,7 @@
             const container = document.getElementById('publicNewsContainer');
 
             try {
-                const response = await fetch('/api/news');
+                const response = await fetch('/api/public/news');
                 const newsList = await response.json();
 
                 if (!Array.isArray(newsList) || !newsList.length) {

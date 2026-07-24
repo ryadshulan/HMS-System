@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: NODE_ENV
@@ -12,7 +13,7 @@ services:
       - key: PORT
         value: 3000
       - key: PUBLIC_BASE_URL
-        value: https://hms-system-8u0x.onrender.com
+        value: https://hmstar.net
       - key: APP_TIMEZONE
         value: Asia/Aden
       - key: MONGO_URI
@@ -27,6 +28,14 @@ services:
         value: v24.0
       - key: META_APP_SECRET
         sync: false
+      - key: FACEBOOK_PAGE_ID
+        value: 107738988661891
+      - key: FACEBOOK_PAGE_ACCESS_TOKEN
+        sync: false
+      - key: FACEBOOK_NEWS_LIMIT
+        value: 10
+      - key: FACEBOOK_NEWS_CACHE_SECONDS
+        value: 120
       - key: WHATSAPP_BUSINESS_ACCOUNT_ID
         sync: false
       - key: WHATSAPP_PHONE_NUMBER_ID

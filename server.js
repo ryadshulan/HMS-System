@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { createFacebookNewsClient } = require('./facebook-news');
 require('dotenv').config();
 
 function readEnvValue(name, fallback = '') {
@@ -64,6 +65,16 @@ const whatsAppTemplateBodyParameters = readEnvValue('WHATSAPP_TEMPLATE_BODY_PARA
 const whatsAppDeliveryMessage = readEnvValue('WHATSAPP_DELIVERY_MESSAGE', defaultWhatsAppDeliveryMessage);
 const whatsAppDefaultCountryCode = readEnvValue('WHATSAPP_DEFAULT_COUNTRY_CODE', '967').replace(/\D/g, '');
 const appTimeZone = readEnvValue('APP_TIMEZONE', 'Asia/Aden');
+const facebookPageId = readEnvValue('FACEBOOK_PAGE_ID');
+const facebookPageAccessToken = readEnvValue('FACEBOOK_PAGE_ACCESS_TOKEN');
+const facebookNewsClient = createFacebookNewsClient({
+  pageId: facebookPageId,
+  accessToken: facebookPageAccessToken,
+  graphVersion,
+  timeZone: appTimeZone,
+  limit: process.env.FACEBOOK_NEWS_LIMIT,
+  cacheTtlMs: Number(process.env.FACEBOOK_NEWS_CACHE_SECONDS || 120) * 1000,
+});
 const automaticMilestoneIntervalMs = Math.max(
   Number(process.env.AUTOMATIC_MILESTONE_INTERVAL_MS || 5 * 60 * 1000),
   60 * 1000
@@ -1888,6 +1899,38 @@ app.get('/api/clients/export/excel', requireAuth, async (req, res) => {
 app.get('/api/news', async (req, res) => {
   const news = await News.find().sort({ createdAt: -1 });
   res.json(news);
+});
+
+app.get('/api/public/news', async (req, res) => {
+  const manualNews = await News.find().sort({ createdAt: -1 }).lean();
+  let facebookNews = [];
+
+  try {
+    facebookNews = await facebookNewsClient.getPosts();
+  } catch (error) {
+    console.warn('Facebook news sync failed:', error.message);
+  }
+
+  const combinedNews = [
+    ...manualNews.map((item) => ({
+      ...item,
+      source: 'manual',
+      publishedAt: item.createdAt,
+    })),
+    ...facebookNews,
+  ].sort((left, right) => {
+    const leftTime = new Date(left.publishedAt || left.createdAt || left.date || 0).getTime() || 0;
+    const rightTime = new Date(right.publishedAt || right.createdAt || right.date || 0).getTime() || 0;
+    return rightTime - leftTime;
+  });
+
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json(combinedNews.slice(0, 20));
+});
+
+app.get('/api/integrations/facebook/status', requireAuth, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(facebookNewsClient.getStatus());
 });
 
 app.post('/api/news', requireAuth, async (req, res) => {
