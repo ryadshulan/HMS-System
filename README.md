@@ -6,6 +6,7 @@
 
 - صفحة عامة لتتبع الشحنات وعرض الأخبار والخدمات.
 - لوحة تحكم محمية بتسجيل دخول JWT وملفات Cookie آمنة.
+- استرجاع كلمة المرور برمز مؤقت عبر واتساب أو البريد، مع إبطال الجلسات القديمة بعد التغيير.
 - إدارة الشحنات عبر مراحل لوجستية واضحة من مخازن الصين حتى مستودعات عدن.
 - قاعدة بيانات عملاء مرتبطة بأرقام الحاويات.
 - إرسال إشعار WhatsApp عند اكتمال مرحلة الاستلام في مستودعات عدن.
@@ -40,6 +41,10 @@ WHATSAPP_PHONE_NUMBER_ID
 WHATSAPP_ACCESS_TOKEN
 WHATSAPP_VERIFY_TOKEN
 WHATSAPP_TEMPLATE_NAME
+WHATSAPP_PASSWORD_RESET_ENABLED
+WHATSAPP_PASSWORD_RESET_TEMPLATE_NAME
+RESEND_API_KEY
+PASSWORD_RESET_EMAIL_FROM
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
@@ -61,4 +66,6 @@ CLOUDINARY_API_SECRET
 - لا ترفع ملف `.env` إلى GitHub.
 - في وضع Meta WhatsApp التجريبي، يجب إضافة رقم المستلم إلى قائمة الأرقام المسموحة داخل Meta.
 - للإنتاج، استخدم قالب WhatsApp معتمد في `WHATSAPP_TEMPLATE_NAME`.
+- لاسترجاع كلمة المرور عبر واتساب، اعتمد قالب Authentication باسم `hms_password_reset` ثم فعّل `WHATSAPP_PASSWORD_RESET_ENABLED=true`.
+- للاسترجاع عبر البريد، اضبط `RESEND_API_KEY` و`PASSWORD_RESET_EMAIL_FROM` بعنوان مرسل موثق.
 - رفع الصور المحلي على Render غير دائم بعد إعادة النشر؛ للإنتاج يفضل تفعيل Cloudinary.

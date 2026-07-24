@@ -93,6 +93,34 @@ textarea {
   flex-wrap: wrap;
 }
 
+.auth-actions .btn {
+  flex: 1 1 150px;
+}
+
+.auth-link-button {
+  width: fit-content;
+  margin: 0 auto;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-link-button:hover {
+  color: var(--secondary);
+}
+
+.recovery-unavailable {
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  line-height: 1.7;
+}
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -397,6 +425,12 @@ textarea {
 
 .btn:hover {
   transform: translateY(-1px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .btn-primary {
@@ -768,6 +802,11 @@ th {
   margin-bottom: 16px;
   background: rgba(214, 79, 92, 0.12);
   color: #a13743;
+}
+
+.inline-alert.success {
+  background: var(--success-soft);
+  color: #1e7653;
 }
 
 .loader {

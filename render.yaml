@@ -54,6 +54,18 @@ services:
         value: وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.
       - key: WHATSAPP_DEFAULT_COUNTRY_CODE
         value: 967
+      - key: WHATSAPP_PASSWORD_RESET_ENABLED
+        value: false
+      - key: WHATSAPP_PASSWORD_RESET_TEMPLATE_NAME
+        value: hms_password_reset
+      - key: WHATSAPP_PASSWORD_RESET_TEMPLATE_LANGUAGE
+        value: ar
+      - key: WHATSAPP_PASSWORD_RESET_ALLOW_TEXT
+        value: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PASSWORD_RESET_EMAIL_FROM
+        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

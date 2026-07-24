@@ -64,6 +64,20 @@ const whatsAppTemplateBodyParameters = readEnvValue('WHATSAPP_TEMPLATE_BODY_PARA
   .filter(Boolean);
 const whatsAppDeliveryMessage = readEnvValue('WHATSAPP_DELIVERY_MESSAGE', defaultWhatsAppDeliveryMessage);
 const whatsAppDefaultCountryCode = readEnvValue('WHATSAPP_DEFAULT_COUNTRY_CODE', '967').replace(/\D/g, '');
+const whatsAppPasswordResetTemplateName = readEnvValue(
+  'WHATSAPP_PASSWORD_RESET_TEMPLATE_NAME',
+  'hms_password_reset'
+);
+const whatsAppPasswordResetTemplateLanguage = readEnvValue(
+  'WHATSAPP_PASSWORD_RESET_TEMPLATE_LANGUAGE',
+  'ar'
+);
+const whatsAppPasswordResetEnabled =
+  readEnvValue('WHATSAPP_PASSWORD_RESET_ENABLED').toLowerCase() === 'true';
+const whatsAppPasswordResetAllowText =
+  readEnvValue('WHATSAPP_PASSWORD_RESET_ALLOW_TEXT').toLowerCase() === 'true';
+const resendApiKey = readEnvValue('RESEND_API_KEY');
+const passwordResetEmailFrom = readEnvValue('PASSWORD_RESET_EMAIL_FROM');
 const appTimeZone = readEnvValue('APP_TIMEZONE', 'Asia/Aden');
 const facebookPageId = readEnvValue('FACEBOOK_PAGE_ID');
 const facebookPageAccessToken = readEnvValue('FACEBOOK_PAGE_ACCESS_TOKEN');
@@ -91,6 +105,16 @@ const allowedCorsOrigins = new Set(
 const loginWindowMs = 15 * 60 * 1000;
 const maxLoginAttempts = 8;
 const loginAttempts = new Map();
+const passwordResetWindowMs = 15 * 60 * 1000;
+const passwordResetTtlMs = 10 * 60 * 1000;
+const maxPasswordResetRequests = 3;
+const maxPasswordResetAttempts = 5;
+const passwordResetRequests = new Map();
+const passwordResetTestMode =
+  !isProduction && readEnvValue('PASSWORD_RESET_TEST_MODE').toLowerCase() === 'true';
+const passwordResetTestCode = passwordResetTestMode
+  ? readEnvValue('PASSWORD_RESET_TEST_CODE', '654321')
+  : '';
 const maxShipmentHistoryItems = 50;
 const milestoneDefinitions = [
   {
@@ -344,6 +368,9 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     passwordHash: { type: String, required: true },
+    recoveryEmail: { type: String, default: '', trim: true, lowercase: true },
+    recoveryPhone: { type: String, default: '', trim: true },
+    authVersion: { type: Number, default: 0 },
     role: { type: String, enum: ['admin', 'manager', 'operator'], default: 'operator' },
     active: { type: Boolean, default: true },
   },
@@ -454,6 +481,23 @@ const whatsAppMessageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const passwordResetSchema = new mongoose.Schema(
+  {
+    requestId: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, index: true },
+    username: { type: String, required: true, trim: true, lowercase: true },
+    channel: { type: String, enum: ['whatsapp', 'email'], required: true },
+    codeHash: { type: String, required: true },
+    attempts: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true, index: { expires: 0 } },
+    usedAt: { type: Date, default: null },
+    requestedIp: { type: String, default: '' },
+    deliveryStatus: { type: String, default: 'pending' },
+    providerMessageId: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
 const User = mongoose.model('User', userSchema);
 const Client = mongoose.model('Client', clientSchema);
 const Shipment = mongoose.model('Shipment', shipmentSchema);
@@ -461,6 +505,7 @@ const News = mongoose.model('News', newsSchema);
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 const WhatsAppMessage = mongoose.model('WhatsAppMessage', whatsAppMessageSchema);
+const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
 
 function buildDefaultMilestones() {
   return milestoneDefinitions.reduce((accumulator, definition) => {
@@ -675,6 +720,8 @@ function serializeUser(userDocument) {
     _id: String(userDocument._id),
     name: userDocument.name,
     username: userDocument.username,
+    recoveryEmail: userDocument.recoveryEmail || '',
+    recoveryPhone: userDocument.recoveryPhone || '',
     role: userDocument.role,
     active: userDocument.active,
     createdAt: userDocument.createdAt,
@@ -710,6 +757,7 @@ function signToken(user) {
       role: user.role,
       username: user.username,
       name: user.name,
+      authVersion: Number(user.authVersion || 0),
     },
     jwtSecret,
     { expiresIn: jwtExpiresIn }
@@ -781,6 +829,62 @@ function isRateLimited(key) {
   }
 
   return attempt.count >= maxLoginAttempts;
+}
+
+function registerPasswordResetRequest(key) {
+  const now = Date.now();
+  const attempt = passwordResetRequests.get(key);
+
+  if (!attempt || now - attempt.firstRequestAt > passwordResetWindowMs) {
+    passwordResetRequests.set(key, { count: 1, firstRequestAt: now });
+    return;
+  }
+
+  attempt.count += 1;
+  passwordResetRequests.set(key, attempt);
+}
+
+function isPasswordResetRateLimited(key) {
+  const attempt = passwordResetRequests.get(key);
+  if (!attempt) {
+    return false;
+  }
+
+  if (Date.now() - attempt.firstRequestAt > passwordResetWindowMs) {
+    passwordResetRequests.delete(key);
+    return false;
+  }
+
+  return attempt.count >= maxPasswordResetRequests;
+}
+
+function clearLoginAttemptsForUsername(username) {
+  const suffix = `:${normalizeUsername(username)}`;
+  for (const key of loginAttempts.keys()) {
+    if (key.endsWith(suffix)) {
+      loginAttempts.delete(key);
+    }
+  }
+}
+
+function getPasswordRecoveryChannels() {
+  return {
+    whatsapp: Boolean(
+      passwordResetTestMode ||
+        (whatsAppPasswordResetEnabled &&
+          whatsAppPhoneNumberId &&
+          whatsAppAccessToken &&
+          (whatsAppPasswordResetTemplateName || whatsAppPasswordResetAllowText))
+    ),
+    email: Boolean(passwordResetTestMode || (resendApiKey && passwordResetEmailFrom)),
+  };
+}
+
+function createPasswordResetCode() {
+  if (passwordResetTestCode) {
+    return passwordResetTestCode;
+  }
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 async function writeAuditLog(action, section, details, actor = null, metadata = {}) {
@@ -1001,6 +1105,122 @@ async function sendWhatsAppNotification(client, shipment) {
       rawPayload: {},
     };
   }
+}
+
+async function sendPasswordResetWhatsApp(phone, code) {
+  const recipientPhone = normalizePhoneForWhatsApp(phone);
+  if (!recipientPhone) {
+    return { delivered: false, status: 'invalid_phone', providerMessageId: '' };
+  }
+
+  if (passwordResetTestMode) {
+    return { delivered: true, status: 'test_accepted', providerMessageId: 'test-password-reset' };
+  }
+
+  if (!whatsAppPasswordResetEnabled || !whatsAppPhoneNumberId || !whatsAppAccessToken) {
+    return { delivered: false, status: 'not_configured', providerMessageId: '' };
+  }
+
+  const payload = whatsAppPasswordResetTemplateName
+    ? {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipientPhone,
+        type: 'template',
+        template: {
+          name: whatsAppPasswordResetTemplateName,
+          language: { code: whatsAppPasswordResetTemplateLanguage },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: code }],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: code }],
+            },
+          ],
+        },
+      }
+    : {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipientPhone,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: `رمز استعادة كلمة مرور لوحة النجم الحديث هو: ${code}\nينتهي الرمز خلال 10 دقائق. لا تشاركه مع أي شخص.`,
+        },
+      };
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${graphVersion}/${whatsAppPhoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${whatsAppAccessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+
+    return {
+      delivered: response.ok,
+      status: response.ok ? 'accepted' : 'failed',
+      providerMessageId: data?.messages?.[0]?.id || '',
+    };
+  } catch (error) {
+    return { delivered: false, status: 'network_error', providerMessageId: '' };
+  }
+}
+
+async function sendPasswordResetEmail(email, code) {
+  if (passwordResetTestMode) {
+    return { delivered: true, status: 'test_accepted', providerMessageId: 'test-password-reset' };
+  }
+
+  if (!email || !resendApiKey || !passwordResetEmailFrom) {
+    return { delivered: false, status: 'not_configured', providerMessageId: '' };
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${resendApiKey}`,
+      },
+      body: JSON.stringify({
+        from: passwordResetEmailFrom,
+        to: [email],
+        subject: 'رمز استعادة كلمة مرور لوحة النجم الحديث',
+        text: `رمز الاستعادة هو: ${code}\nينتهي الرمز خلال 10 دقائق. لا تشاركه مع أي شخص.`,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    return {
+      delivered: response.ok,
+      status: response.ok ? 'accepted' : 'failed',
+      providerMessageId: data?.id || '',
+    };
+  } catch (error) {
+    return { delivered: false, status: 'network_error', providerMessageId: '' };
+  }
+}
+
+async function sendPasswordResetCode(user, channel, code) {
+  if (channel === 'email') {
+    return sendPasswordResetEmail(user.recoveryEmail, code);
+  }
+  return sendPasswordResetWhatsApp(user.recoveryPhone, code);
 }
 
 async function dispatchDeliveryNotifications(shipment, actor) {
@@ -1383,7 +1603,11 @@ async function requireAuth(req, res, next) {
 
     const payload = jwt.verify(token, jwtSecret);
     const user = await User.findById(payload.sub);
-    if (!user || !user.active) {
+    if (
+      !user ||
+      !user.active ||
+      Number(payload.authVersion || 0) !== Number(user.authVersion || 0)
+    ) {
       clearAuthCookie(res);
       return res.status(401).json({ message: 'Unauthorized' });
     }
@@ -1451,6 +1675,8 @@ app.post('/api/auth/bootstrap', async (req, res) => {
   const name = String(req.body?.name || '').trim();
   const username = normalizeUsername(req.body?.username);
   const password = String(req.body?.password || '');
+  const recoveryEmail = String(req.body?.recoveryEmail || '').trim().toLowerCase();
+  const recoveryPhone = normalizePhoneForWhatsApp(req.body?.recoveryPhone);
 
   if (!name || !username || password.length < 8) {
     return res.status(400).json({ message: 'Name, username and a password of at least 8 characters are required.' });
@@ -1461,6 +1687,8 @@ app.post('/api/auth/bootstrap', async (req, res) => {
     name,
     username,
     passwordHash,
+    recoveryEmail,
+    recoveryPhone,
     role: 'admin',
   });
 
@@ -1500,6 +1728,170 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ user: serializeUser(user) });
 });
 
+app.get('/api/auth/recovery-config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    channels: getPasswordRecoveryChannels(),
+    expiresInSeconds: Math.floor(passwordResetTtlMs / 1000),
+  });
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const username = normalizeUsername(req.body?.username);
+  const channel = String(req.body?.channel || '').trim().toLowerCase();
+  const channels = getPasswordRecoveryChannels();
+  const rateLimitKey = `${getRateLimitKey(req, username)}:${channel}`;
+  const genericResponse = {
+    accepted: true,
+    requestId: crypto.randomUUID(),
+    expiresInSeconds: Math.floor(passwordResetTtlMs / 1000),
+    message: 'إذا كانت البيانات صحيحة فسيصل رمز الاسترجاع خلال دقائق.',
+  };
+
+  if (!username || !['whatsapp', 'email'].includes(channel)) {
+    return res.status(400).json({ message: 'أدخل اسم المستخدم واختر وسيلة استلام الرمز.' });
+  }
+
+  if (!channels[channel]) {
+    return res.status(503).json({ message: 'وسيلة الاسترجاع المختارة غير مفعلة حالياً.' });
+  }
+
+  if (isPasswordResetRateLimited(rateLimitKey)) {
+    return res.status(429).json({ message: 'تم طلب رموز كثيرة. حاول مرة أخرى بعد 15 دقيقة.' });
+  }
+  registerPasswordResetRequest(rateLimitKey);
+
+  const user = await User.findOne({ username, active: true });
+  const hasDestination =
+    channel === 'email' ? Boolean(user?.recoveryEmail) : Boolean(user?.recoveryPhone);
+
+  if (!user || !hasDestination) {
+    return res.status(202).json(genericResponse);
+  }
+
+  const code = createPasswordResetCode();
+  const resetRecord = await PasswordReset.create({
+    requestId: genericResponse.requestId,
+    userId: String(user._id),
+    username: user.username,
+    channel,
+    codeHash: await bcrypt.hash(code, 12),
+    expiresAt: new Date(Date.now() + passwordResetTtlMs),
+    requestedIp: req.ip || '',
+  });
+
+  const delivery = await sendPasswordResetCode(user, channel, code);
+  resetRecord.deliveryStatus = delivery.status;
+  resetRecord.providerMessageId = delivery.providerMessageId;
+  await resetRecord.save();
+
+  if (delivery.delivered) {
+    await PasswordReset.updateMany(
+      {
+        _id: { $ne: resetRecord._id },
+        userId: String(user._id),
+        usedAt: null,
+      },
+      {
+        $set: {
+          usedAt: new Date(),
+          deliveryStatus: 'superseded',
+        },
+      }
+    );
+
+    await writeAuditLog(
+      'طلب استرجاع',
+      'المصادقة',
+      `تم إرسال رمز استرجاع للمستخدم ${user.username} عبر ${channel === 'email' ? 'البريد' : 'واتساب'}`,
+      user,
+      { channel }
+    );
+  }
+
+  return res.status(202).json(genericResponse);
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const requestId = String(req.body?.requestId || '').trim();
+  const code = String(req.body?.code || '').trim();
+  const newPassword = String(req.body?.newPassword || '');
+  const invalidCodeMessage = 'رمز الاسترجاع غير صحيح أو انتهت صلاحيته.';
+
+  if (!requestId || !/^\d{6}$/.test(code)) {
+    return res.status(400).json({ message: invalidCodeMessage });
+  }
+
+  if (newPassword.length < 12) {
+    return res.status(400).json({ message: 'كلمة المرور الجديدة يجب أن تكون 12 حرفاً على الأقل.' });
+  }
+
+  const resetRecord = await PasswordReset.findOne({
+    requestId,
+    usedAt: null,
+    expiresAt: { $gt: new Date() },
+    attempts: { $lt: maxPasswordResetAttempts },
+    deliveryStatus: { $in: ['accepted', 'test_accepted'] },
+  });
+
+  if (!resetRecord) {
+    return res.status(400).json({ message: invalidCodeMessage });
+  }
+
+  const codeMatches = await bcrypt.compare(code, resetRecord.codeHash);
+  if (!codeMatches) {
+    resetRecord.attempts += 1;
+    if (resetRecord.attempts >= maxPasswordResetAttempts) {
+      resetRecord.deliveryStatus = 'locked';
+    }
+    await resetRecord.save();
+    return res.status(400).json({ message: invalidCodeMessage });
+  }
+
+  const claimedRecord = await PasswordReset.findOneAndUpdate(
+    { _id: resetRecord._id, usedAt: null },
+    { $set: { usedAt: new Date(), deliveryStatus: 'used' } },
+    { new: true }
+  );
+  if (!claimedRecord) {
+    return res.status(400).json({ message: invalidCodeMessage });
+  }
+
+  const user = await User.findOne({ _id: resetRecord.userId, active: true });
+  if (!user) {
+    return res.status(400).json({ message: invalidCodeMessage });
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  user.authVersion = Number(user.authVersion || 0) + 1;
+  await user.save();
+
+  await PasswordReset.updateMany(
+    {
+      _id: { $ne: resetRecord._id },
+      userId: String(user._id),
+      usedAt: null,
+    },
+    {
+      $set: {
+        usedAt: new Date(),
+        deliveryStatus: 'superseded',
+      },
+    }
+  );
+
+  clearLoginAttemptsForUsername(user.username);
+  clearAuthCookie(res);
+  await writeAuditLog(
+    'إعادة تعيين كلمة المرور',
+    'المصادقة',
+    `تمت إعادة تعيين كلمة مرور المستخدم ${user.username}`,
+    user
+  );
+
+  return res.json({ ok: true, username: user.username });
+});
+
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
   await writeAuditLog('تسجيل خروج', 'المصادقة', `خروج المستخدم ${req.user.username}`, req.user);
   clearAuthCookie(res);
@@ -1519,6 +1911,8 @@ app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
   const name = String(req.body?.name || '').trim();
   const username = normalizeUsername(req.body?.username);
   const password = String(req.body?.password || '');
+  const recoveryEmail = String(req.body?.recoveryEmail || '').trim().toLowerCase();
+  const recoveryPhone = normalizePhoneForWhatsApp(req.body?.recoveryPhone);
   const role = ['admin', 'manager', 'operator'].includes(req.body?.role) ? req.body.role : 'operator';
 
   if (!name || !username || password.length < 8) {
@@ -1534,6 +1928,8 @@ app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
     name,
     username,
     passwordHash: await bcrypt.hash(password, 12),
+    recoveryEmail,
+    recoveryPhone,
     role,
   });
 
@@ -1551,6 +1947,28 @@ app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) =>
   }
 
   user.name = String(req.body?.name || user.name).trim();
+  const requestedUsername = normalizeUsername(req.body?.username || user.username);
+  if (!requestedUsername) {
+    return res.status(400).json({ message: 'Username is required.' });
+  }
+
+  if (requestedUsername !== user.username) {
+    const usernameExists = await User.exists({
+      username: requestedUsername,
+      _id: { $ne: user._id },
+    });
+    if (usernameExists) {
+      return res.status(409).json({ message: 'Username already exists.' });
+    }
+    user.username = requestedUsername;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'recoveryEmail')) {
+    user.recoveryEmail = String(req.body.recoveryEmail || '').trim().toLowerCase();
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'recoveryPhone')) {
+    user.recoveryPhone = normalizePhoneForWhatsApp(req.body.recoveryPhone);
+  }
   user.role = ['admin', 'manager', 'operator'].includes(req.body?.role) ? req.body.role : user.role;
   user.active = typeof req.body?.active === 'boolean' ? req.body.active : user.active;
 
@@ -1559,6 +1977,7 @@ app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) =>
       return res.status(400).json({ message: 'Password must be at least 8 characters.' });
     }
     user.passwordHash = await bcrypt.hash(String(req.body.password), 12);
+    user.authVersion = Number(user.authVersion || 0) + 1;
   }
 
   await user.save();

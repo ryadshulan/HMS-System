@@ -125,6 +125,8 @@ function makeUserForm(current = null) {
     name: current?.name || '',
     username: current?.username || '',
     password: '',
+    recoveryEmail: current?.recoveryEmail || '',
+    recoveryPhone: current?.recoveryPhone || '',
     role: current?.role || 'operator',
     active: current?.active ?? true,
   };
@@ -173,7 +175,18 @@ function deriveMilestoneSequence(definitions, milestoneState) {
   });
 }
 
-function InputField({ label, icon = '', type = 'text', value, placeholder = '', onInput, readOnly = false }) {
+function InputField({
+  label,
+  icon = '',
+  type = 'text',
+  value,
+  placeholder = '',
+  onInput,
+  readOnly = false,
+  autoComplete = '',
+  inputMode = '',
+  maxLength,
+}) {
   return html`
     <label className="field">
       <span>${label}</span>
@@ -185,6 +198,9 @@ function InputField({ label, icon = '', type = 'text', value, placeholder = '', 
           placeholder=${placeholder}
           onInput=${onInput}
           readOnly=${readOnly}
+          autoComplete=${autoComplete}
+          inputMode=${inputMode}
+          maxLength=${maxLength}
         />
       </div>
     </label>
@@ -238,6 +254,10 @@ function App() {
   const [booting, setBooting] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [authMode, setAuthMode] = useState('login');
+  const [recoveryConfig, setRecoveryConfig] = useState({ whatsapp: false, email: false });
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loadingData, setLoadingData] = useState(false);
@@ -254,6 +274,14 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [uiHistory, setUiHistory] = useState(getStoredUiHistory());
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [recoveryForm, setRecoveryForm] = useState({
+    username: '',
+    channel: '',
+    requestId: '',
+    code: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
   const [setupForm, setSetupForm] = useState({ name: '', username: '', password: '', confirmPassword: '' });
   const [shipmentForm, setShipmentForm] = useState(makeShipmentForm([]));
   const [clientForm, setClientForm] = useState(makeClientForm());
@@ -262,6 +290,10 @@ function App() {
 
   const canManageUsers = user?.role === 'admin';
   const canViewUsers = user?.role === 'admin' || user?.role === 'manager';
+  const recoveryChannelOptions = [
+    ...(recoveryConfig.whatsapp ? [{ value: 'whatsapp', label: 'رسالة واتساب' }] : []),
+    ...(recoveryConfig.email ? [{ value: 'email', label: 'البريد الإلكتروني' }] : []),
+  ];
   const visibleTabs = useMemo(
     () => tabs.filter((tab) => (tab.key === 'users' ? canViewUsers : true)),
     [canViewUsers]
@@ -301,9 +333,10 @@ function App() {
 
     async function initialize() {
       try {
-        const [setupData, milestoneData] = await Promise.all([
+        const [setupData, milestoneData, recoveryData] = await Promise.all([
           apiRequest('/api/auth/setup-status'),
           apiRequest('/api/shipment-milestones'),
+          apiRequest('/api/auth/recovery-config'),
         ]);
 
         if (!active) {
@@ -313,6 +346,14 @@ function App() {
         setNeedsSetup(setupData.needsSetup);
         setMilestones(milestoneData);
         setShipmentForm(makeShipmentForm(milestoneData));
+        const configuredChannels = recoveryData.channels || { whatsapp: false, email: false };
+        const defaultRecoveryChannel = configuredChannels.whatsapp
+          ? 'whatsapp'
+          : configuredChannels.email
+            ? 'email'
+            : '';
+        setRecoveryConfig(configuredChannels);
+        setRecoveryForm((current) => ({ ...current, channel: defaultRecoveryChannel }));
 
         if (!setupData.needsSetup) {
           const meResponse = await fetch('/api/auth/me', { credentials: 'same-origin' });
@@ -480,6 +521,7 @@ function App() {
   async function handleLogin(event) {
     event.preventDefault();
     setAuthError('');
+    setAuthNotice('');
 
     try {
       const data = await apiRequest('/api/auth/login', {
@@ -497,6 +539,106 @@ function App() {
     }
   }
 
+  function openPasswordRecovery() {
+    setAuthError('');
+    setAuthNotice('');
+    setRecoveryForm((current) => ({
+      ...current,
+      username: loginForm.username || current.username,
+      requestId: '',
+      code: '',
+      newPassword: '',
+      confirmPassword: '',
+    }));
+    setAuthMode('forgot');
+  }
+
+  function returnToLogin() {
+    setAuthError('');
+    setAuthNotice('');
+    setAuthMode('login');
+  }
+
+  async function handleRequestPasswordReset(event) {
+    event.preventDefault();
+    setAuthError('');
+    setAuthNotice('');
+
+    if (!recoveryForm.username.trim() || !recoveryForm.channel) {
+      setAuthError('أدخل اسم المستخدم واختر وسيلة استلام الرمز.');
+      return;
+    }
+
+    setRecoveryBusy(true);
+    try {
+      const data = await apiRequest('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: recoveryForm.username,
+          channel: recoveryForm.channel,
+        }),
+      });
+
+      setRecoveryForm((current) => ({ ...current, requestId: data.requestId, code: '' }));
+      setAuthNotice(data.message || 'تم إرسال رمز الاسترجاع.');
+      setAuthMode('reset');
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }
+
+  async function handleResetPassword(event) {
+    event.preventDefault();
+    setAuthError('');
+    setAuthNotice('');
+
+    if (!/^\d{6}$/.test(recoveryForm.code.trim())) {
+      setAuthError('أدخل رمز التحقق المكوّن من 6 أرقام.');
+      return;
+    }
+
+    if (recoveryForm.newPassword.length < 12) {
+      setAuthError('كلمة المرور الجديدة يجب أن تكون 12 حرفاً على الأقل.');
+      return;
+    }
+
+    if (recoveryForm.newPassword !== recoveryForm.confirmPassword) {
+      setAuthError('تأكيد كلمة المرور الجديدة غير مطابق.');
+      return;
+    }
+
+    setRecoveryBusy(true);
+    try {
+      const data = await apiRequest('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: recoveryForm.requestId,
+          code: recoveryForm.code,
+          newPassword: recoveryForm.newPassword,
+        }),
+      });
+
+      setLoginForm({ username: data.username || recoveryForm.username, password: '' });
+      setRecoveryForm((current) => ({
+        ...current,
+        requestId: '',
+        code: '',
+        newPassword: '',
+        confirmPassword: '',
+      }));
+      setAuthMode('login');
+      setAuthNotice('تم تعيين كلمة المرور الجديدة. يمكنك تسجيل الدخول الآن.');
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }
+
   async function handleLogout() {
     try {
       await apiRequest('/api/auth/logout', { method: 'POST' });
@@ -507,6 +649,7 @@ function App() {
     setUser(null);
     setActiveTab('dashboard');
     setLoginForm({ username: '', password: '' });
+    setAuthMode('login');
     pushUiHistory('تسجيل خروج', 'تم تسجيل الخروج من لوحة الإدارة');
   }
 
@@ -882,14 +1025,27 @@ function App() {
       <div className="auth-shell">
         <div className="auth-card">
           <img src="/uploads/شعار النجم الحديث.jpg" alt="HMS" />
-          <h1>لوحة تحكم حقيقية</h1>
+          <h1>
+            ${needsSetup
+              ? 'تهيئة لوحة التحكم'
+              : authMode === 'forgot'
+                ? 'استرجاع كلمة المرور'
+                : authMode === 'reset'
+                  ? 'التحقق من الرمز'
+                  : 'لوحة تحكم حقيقية'}
+          </h1>
           <p>
             ${needsSetup
               ? 'هذه أول مرة يتم فيها تشغيل النظام. أنشئ المدير الأول لبدء العمل.'
-              : 'تسجيل دخول آمن عبر JWT داخل Cookie محمية من السيرفر.'}
+              : authMode === 'forgot'
+                ? 'اختر وسيلة استلام رمز التحقق المرتبطة بحسابك.'
+                : authMode === 'reset'
+                  ? 'أدخل الرمز المرسل إليك ثم عيّن كلمة مرور جديدة.'
+                  : 'تسجيل دخول آمن عبر JWT داخل Cookie محمية من السيرفر.'}
           </p>
 
           ${authError ? html`<div className="inline-alert">${authError}</div>` : null}
+          ${authNotice ? html`<div className="inline-alert success">${authNotice}</div>` : null}
 
           ${needsSetup
             ? html`
@@ -924,17 +1080,104 @@ function App() {
                   </div>
                 </form>
               `
-            : html`
+            : authMode === 'forgot'
+              ? html`
+                  <form className="form-grid single" onSubmit=${handleRequestPasswordReset}>
+                    <${InputField}
+                      label="اسم المستخدم"
+                      value=${recoveryForm.username}
+                      autoComplete="username"
+                      onInput=${(event) =>
+                        setRecoveryForm((current) => ({ ...current, username: event.target.value }))}
+                    />
+                    ${recoveryChannelOptions.length
+                      ? html`
+                          <${SelectField}
+                            label="إرسال الرمز عبر"
+                            value=${recoveryForm.channel}
+                            options=${recoveryChannelOptions}
+                            onChange=${(event) =>
+                              setRecoveryForm((current) => ({ ...current, channel: event.target.value }))}
+                          />
+                        `
+                      : html`
+                          <div className="recovery-unavailable">
+                            قنوات إرسال رمز الاسترجاع غير مفعلة بعد. يمكن للمدير تغيير كلمة المرور من قسم المستخدمين.
+                          </div>
+                        `}
+                    <div className="auth-actions">
+                      <button
+                        className="btn btn-primary"
+                        type="submit"
+                        disabled=${recoveryBusy || !recoveryChannelOptions.length}
+                      >
+                        <i className=${`fas ${recoveryBusy ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+                        إرسال رمز التحقق
+                      </button>
+                      <button className="btn btn-secondary" type="button" onClick=${returnToLogin}>
+                        <i className="fas fa-arrow-right"></i>
+                        العودة للدخول
+                      </button>
+                    </div>
+                  </form>
+                `
+              : authMode === 'reset'
+                ? html`
+                    <form className="form-grid single" onSubmit=${handleResetPassword}>
+                      <${InputField}
+                        label="رمز التحقق"
+                        value=${recoveryForm.code}
+                        placeholder="000000"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength=${6}
+                        onInput=${(event) =>
+                          setRecoveryForm((current) => ({
+                            ...current,
+                            code: event.target.value.replace(/\D/g, '').slice(0, 6),
+                          }))}
+                      />
+                      <${InputField}
+                        label="كلمة المرور الجديدة"
+                        type="password"
+                        value=${recoveryForm.newPassword}
+                        autoComplete="new-password"
+                        onInput=${(event) =>
+                          setRecoveryForm((current) => ({ ...current, newPassword: event.target.value }))}
+                      />
+                      <${InputField}
+                        label="تأكيد كلمة المرور الجديدة"
+                        type="password"
+                        value=${recoveryForm.confirmPassword}
+                        autoComplete="new-password"
+                        onInput=${(event) =>
+                          setRecoveryForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                      />
+                      <div className="auth-actions">
+                        <button className="btn btn-primary" type="submit" disabled=${recoveryBusy}>
+                          <i className=${`fas ${recoveryBusy ? 'fa-spinner fa-spin' : 'fa-key'}`}></i>
+                          حفظ كلمة المرور
+                        </button>
+                        <button className="btn btn-secondary" type="button" onClick=${returnToLogin}>
+                          <i className="fas fa-arrow-right"></i>
+                          العودة للدخول
+                        </button>
+                      </div>
+                    </form>
+                  `
+                : html`
                 <form className="form-grid single" onSubmit=${handleLogin}>
                   <${InputField}
                     label="اسم المستخدم"
                     value=${loginForm.username}
+                    autoComplete="username"
                     onInput=${(event) => setLoginForm({ ...loginForm, username: event.target.value })}
                   />
                   <${InputField}
                     label="كلمة المرور"
                     type="password"
                     value=${loginForm.password}
+                    autoComplete="current-password"
                     onInput=${(event) => setLoginForm({ ...loginForm, password: event.target.value })}
                   />
                   <div className="auth-actions">
@@ -943,6 +1186,9 @@ function App() {
                       دخول آمن
                     </button>
                   </div>
+                  <button className="auth-link-button" type="button" onClick=${openPasswordRecovery}>
+                    نسيت كلمة المرور؟
+                  </button>
                 </form>
               `}
         </div>
@@ -1656,6 +1902,22 @@ function App() {
                       type="password"
                       value=${userForm.password}
                       onInput=${(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
+                    />
+                    <${InputField}
+                      label="بريد استرجاع الحساب"
+                      type="email"
+                      value=${userForm.recoveryEmail}
+                      placeholder="name@example.com"
+                      onInput=${(event) =>
+                        setUserForm((current) => ({ ...current, recoveryEmail: event.target.value }))}
+                    />
+                    <${InputField}
+                      label="رقم واتساب للاسترجاع"
+                      value=${userForm.recoveryPhone}
+                      placeholder="9677XXXXXXXX"
+                      inputMode="tel"
+                      onInput=${(event) =>
+                        setUserForm((current) => ({ ...current, recoveryPhone: event.target.value }))}
                     />
                     <${SelectField}
                       label="الدور"
