@@ -311,6 +311,9 @@ app.get(['/privacy-policy', '/privacy-policy/'], (req, res) => {
 app.get(['/data-deletion', '/data-deletion/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'data-deletion.html'));
 });
+app.get(['/terms-of-service', '/terms-of-service/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'terms-of-service.html'));
+});
 app.use(
   '/uploads',
   express.static(uploadDir, {

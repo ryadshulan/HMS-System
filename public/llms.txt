@@ -24,4 +24,5 @@
 ## الخصوصية
 
 - سياسة الخصوصية: https://hmstar.net/privacy-policy
+- شروط الخدمة: https://hmstar.net/terms-of-service
 - حذف بيانات المستخدم: https://hmstar.net/data-deletion
