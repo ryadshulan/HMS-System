@@ -51,7 +51,7 @@ const jwtExpiresIn = readEnvValue('JWT_EXPIRES_IN', '7d');
 const graphVersion = readEnvValue('META_GRAPH_VERSION', 'v24.0');
 const metaAppSecret = readEnvValue('META_APP_SECRET');
 const defaultWhatsAppDeliveryMessage = 'وصلت شحنتك إلى مستودعات عدن بنجاح، شكراً لتعاملكم معنا.';
-const publicBaseUrl = readEnvValue('PUBLIC_BASE_URL', 'https://hms-system-8u0x.onrender.com').replace(/\/+$/, '');
+const publicBaseUrl = readEnvValue('PUBLIC_BASE_URL', 'https://hmstar.net').replace(/\/+$/, '');
 const whatsAppBusinessAccountId = readEnvValue('WHATSAPP_BUSINESS_ACCOUNT_ID');
 const whatsAppPhoneNumberId = readEnvValue('WHATSAPP_PHONE_NUMBER_ID');
 const whatsAppAccessToken = readEnvValue('WHATSAPP_ACCESS_TOKEN');
@@ -292,6 +292,19 @@ app.use((req, res, next) => {
   );
   next();
 });
+app.use((req, res, next) => {
+  const hostname = String(req.hostname || '').toLowerCase();
+  const isLegacyPublicPage =
+    (req.method === 'GET' || req.method === 'HEAD') &&
+    (req.path === '/' || req.path === '/index.html') &&
+    hostname === 'hms-system-8u0x.onrender.com';
+
+  if (isLegacyPublicPage) {
+    return res.redirect(301, `${publicBaseUrl}/`);
+  }
+
+  return next();
+});
 app.use(
   '/uploads',
   express.static(uploadDir, {
@@ -310,6 +323,10 @@ app.use(
         filePath.endsWith('admin.css')
       ) {
         res.setHeader('Cache-Control', 'no-store');
+      }
+
+      if (filePath.endsWith('admin.html')) {
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       }
     },
   })

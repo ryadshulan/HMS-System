@@ -40,6 +40,7 @@ function createFacebookNewsClient(options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const limit = clampInteger(options.limit, 1, 25, 10);
   const cacheTtlMs = clampInteger(options.cacheTtlMs, 30 * 1000, 60 * 60 * 1000, 2 * 60 * 1000);
+  const requestTimeoutMs = clampInteger(options.requestTimeoutMs, 1000, 30 * 1000, 10 * 1000);
   const configured = Boolean(pageId && accessToken && typeof fetchImpl === 'function');
 
   let cache = {
@@ -61,12 +62,18 @@ function createFacebookNewsClient(options = {}) {
 
     const response = await fetchImpl(url, {
       headers: { Accept: 'application/json' },
+      signal: typeof globalThis.AbortSignal?.timeout === 'function'
+        ? globalThis.AbortSignal.timeout(requestTimeoutMs)
+        : undefined,
     });
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok || payload.error) {
       const code = payload.error?.code ? ` (${payload.error.code})` : '';
-      throw new Error(`Facebook Graph API request failed${code}.`);
+      const detail = String(payload.error?.message || '').trim();
+      throw new Error(
+        `Facebook Graph API request failed${code}${detail ? `: ${detail}` : '.'}`
+      );
     }
 
     const items = (Array.isArray(payload.data) ? payload.data : [])

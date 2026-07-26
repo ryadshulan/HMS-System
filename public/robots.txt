@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin.html
 Disallow: /api/
 
-Sitemap: https://hms-system-8u0x.onrender.com/sitemap.xml
+Sitemap: https://hmstar.net/sitemap.xml
