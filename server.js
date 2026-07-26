@@ -110,6 +110,9 @@ const passwordResetTtlMs = 10 * 60 * 1000;
 const maxPasswordResetRequests = 3;
 const maxPasswordResetAttempts = 5;
 const passwordResetRequests = new Map();
+const siteVisitWindowMs = 5 * 60 * 1000;
+const maxSiteVisitRequests = 60;
+const siteVisitRequests = new Map();
 const passwordResetTestMode =
   !isProduction && readEnvValue('PASSWORD_RESET_TEST_MODE').toLowerCase() === 'true';
 const passwordResetTestCode = passwordResetTestMode
@@ -498,6 +501,23 @@ const passwordResetSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const siteVisitSchema = new mongoose.Schema(
+  {
+    sessionHash: { type: String, required: true, unique: true, index: true },
+    visitorHash: { type: String, required: true, index: true },
+    path: { type: String, default: '/', trim: true },
+    referrerHost: { type: String, default: '', trim: true },
+    deviceType: {
+      type: String,
+      enum: ['desktop', 'mobile', 'tablet'],
+      default: 'desktop',
+    },
+    language: { type: String, default: '', trim: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+siteVisitSchema.index({ createdAt: -1 });
+
 const User = mongoose.model('User', userSchema);
 const Client = mongoose.model('Client', clientSchema);
 const Shipment = mongoose.model('Shipment', shipmentSchema);
@@ -506,6 +526,7 @@ const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 const WhatsAppMessage = mongoose.model('WhatsAppMessage', whatsAppMessageSchema);
 const PasswordReset = mongoose.model('PasswordReset', passwordResetSchema);
+const SiteVisit = mongoose.model('SiteVisit', siteVisitSchema);
 
 function buildDefaultMilestones() {
   return milestoneDefinitions.reduce((accumulator, definition) => {
@@ -548,6 +569,85 @@ function normalizePhoneForWhatsApp(value) {
   }
 
   return phone;
+}
+
+function createPrivateHash(value) {
+  return crypto.createHmac('sha256', jwtSecret).update(String(value || '')).digest('hex');
+}
+
+function getRequestIp(req) {
+  const forwardedIp = String(req.get('x-forwarded-for') || '')
+    .split(',')[0]
+    .trim();
+  return forwardedIp || req.socket?.remoteAddress || req.ip || 'unknown';
+}
+
+function readSiteVisitDeviceType(userAgent) {
+  const value = String(userAgent || '').toLowerCase();
+  if (/ipad|tablet|kindle|silk/.test(value)) {
+    return 'tablet';
+  }
+  if (/mobile|android|iphone|ipod/.test(value)) {
+    return 'mobile';
+  }
+  return 'desktop';
+}
+
+function isAutomatedSiteVisit(userAgent) {
+  return /bot|crawler|spider|slurp|headless|lighthouse|facebookexternalhit|whatsapp/i.test(
+    String(userAgent || '')
+  );
+}
+
+function normalizeVisitSessionId(value) {
+  const sessionId = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{16,128}$/.test(sessionId) ? sessionId : '';
+}
+
+function normalizeVisitLanguage(value) {
+  return String(value || '')
+    .trim()
+    .slice(0, 24)
+    .replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+function normalizeReferrerHost(value) {
+  try {
+    const referrerUrl = new URL(String(value || ''));
+    if (!['http:', 'https:'].includes(referrerUrl.protocol)) {
+      return '';
+    }
+
+    const referrerHost = referrerUrl.hostname.toLowerCase().replace(/^www\./, '');
+    const ownHost = new URL(publicBaseUrl).hostname.toLowerCase().replace(/^www\./, '');
+    return referrerHost === ownHost ? '' : referrerHost.slice(0, 160);
+  } catch (error) {
+    return '';
+  }
+}
+
+function isSiteVisitRateLimited(req) {
+  const now = Date.now();
+  const key = createPrivateHash(getRequestIp(req));
+  const current = siteVisitRequests.get(key);
+
+  if (!current || now - current.startedAt >= siteVisitWindowMs) {
+    siteVisitRequests.set(key, { count: 1, startedAt: now });
+    return false;
+  }
+
+  current.count += 1;
+  siteVisitRequests.set(key, current);
+  return current.count > maxSiteVisitRequests;
+}
+
+function cleanupSiteVisitRateLimits() {
+  const cutoff = Date.now() - siteVisitWindowMs;
+  for (const [key, value] of siteVisitRequests.entries()) {
+    if (value.startedAt < cutoff) {
+      siteVisitRequests.delete(key);
+    }
+  }
 }
 
 function normalizeEstimatedDate(value) {
@@ -1645,6 +1745,117 @@ function requireDbConnection(req, res, next) {
   });
 }
 
+function getDateLabelInAppTimeZone(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: appTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function buildRecentDateLabels(days) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Array.from({ length: days }, (_, index) =>
+    getDateLabelInAppTimeZone(new Date(Date.now() - (days - index - 1) * dayMs))
+  );
+}
+
+async function buildSiteVisitOverview(requestedDays) {
+  const days = Math.min(Math.max(Number(requestedDays) || 30, 30), 90);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const rangeStart = new Date(Date.now() - (days + 1) * dayMs);
+
+  const [dailyRows, totalVisits, totalVisitorRows, deviceRows, referrerRows, recentRows] =
+    await Promise.all([
+      SiteVisit.aggregate([
+        { $match: { createdAt: { $gte: rangeStart } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                date: '$createdAt',
+                format: '%Y-%m-%d',
+                timezone: appTimeZone,
+              },
+            },
+            visits: { $sum: 1 },
+            visitors: { $addToSet: '$visitorHash' },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: '$_id',
+            visits: 1,
+            visitors: { $size: '$visitors' },
+          },
+        },
+        { $sort: { date: 1 } },
+      ]),
+      SiteVisit.countDocuments(),
+      SiteVisit.aggregate([{ $group: { _id: '$visitorHash' } }, { $count: 'value' }]),
+      SiteVisit.aggregate([
+        { $match: { createdAt: { $gte: new Date(Date.now() - 30 * dayMs) } } },
+        { $group: { _id: '$deviceType', visits: { $sum: 1 } } },
+        { $project: { _id: 0, type: '$_id', visits: 1 } },
+        { $sort: { visits: -1 } },
+      ]),
+      SiteVisit.aggregate([
+        { $match: { createdAt: { $gte: new Date(Date.now() - 30 * dayMs) } } },
+        {
+          $group: {
+            _id: {
+              $cond: [{ $eq: ['$referrerHost', ''] }, 'direct', '$referrerHost'],
+            },
+            visits: { $sum: 1 },
+          },
+        },
+        { $project: { _id: 0, source: '$_id', visits: 1 } },
+        { $sort: { visits: -1 } },
+        { $limit: 6 },
+      ]),
+      SiteVisit.find()
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .select({ createdAt: 1, deviceType: 1, referrerHost: 1, language: 1, _id: 0 })
+        .lean(),
+    ]);
+
+  const dailyByDate = new Map(dailyRows.map((row) => [row.date, row]));
+  const daily = buildRecentDateLabels(days).map((date) => ({
+    date,
+    visits: dailyByDate.get(date)?.visits || 0,
+    visitors: dailyByDate.get(date)?.visitors || 0,
+  }));
+  const today = daily[daily.length - 1] || { visits: 0, visitors: 0 };
+  const sumVisits = (rows) => rows.reduce((total, row) => total + row.visits, 0);
+
+  return {
+    generatedAt: new Date(),
+    timeZone: appTimeZone,
+    totals: {
+      visits: totalVisits,
+      visitors: totalVisitorRows[0]?.value || 0,
+      todayVisits: today.visits,
+      todayVisitors: today.visitors,
+      last7Days: sumVisits(daily.slice(-7)),
+      last30Days: sumVisits(daily.slice(-30)),
+    },
+    daily,
+    devices: deviceRows,
+    referrers: referrerRows,
+    recent: recentRows.map((visit) => ({
+      createdAt: visit.createdAt,
+      deviceType: visit.deviceType,
+      referrer: visit.referrerHost || 'direct',
+      language: visit.language || '',
+    })),
+  };
+}
+
 app.get('/healthz', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ ok: true, database: getDatabaseHealthPayload() });
@@ -1659,6 +1870,48 @@ app.use('/api', (req, res, next) => {
   }
 
   return requireDbConnection(req, res, next);
+});
+
+app.post('/api/analytics/visit', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  cleanupSiteVisitRateLimits();
+
+  if (isSiteVisitRateLimited(req)) {
+    return res.sendStatus(429);
+  }
+
+  const sessionId = normalizeVisitSessionId(req.body?.sessionId);
+  const userAgent = String(req.get('user-agent') || '').slice(0, 500);
+  if (!sessionId || isAutomatedSiteVisit(userAgent)) {
+    return res.sendStatus(204);
+  }
+
+  const visitorHash = createPrivateHash(`${getRequestIp(req)}|${userAgent}`);
+  const sessionHash = createPrivateHash(`${visitorHash}|${sessionId}`);
+
+  try {
+    await SiteVisit.updateOne(
+      { sessionHash },
+      {
+        $setOnInsert: {
+          sessionHash,
+          visitorHash,
+          path: '/',
+          referrerHost: normalizeReferrerHost(req.body?.referrer),
+          deviceType: readSiteVisitDeviceType(userAgent),
+          language: normalizeVisitLanguage(req.body?.language),
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error?.code !== 11000) {
+      throw error;
+    }
+  }
+
+  return res.sendStatus(204);
 });
 
 app.get('/api/auth/setup-status', async (req, res) => {
@@ -1900,6 +2153,11 @@ app.post('/api/auth/logout', requireAuth, async (req, res) => {
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({ user: serializeUser(req.user) });
+});
+
+app.get('/api/analytics/overview', requireAuth, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await buildSiteVisitOverview(req.query.days));
 });
 
 app.get('/api/users', requireAuth, requireRole('admin', 'manager'), async (req, res) => {

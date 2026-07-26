@@ -583,6 +583,42 @@
     </section>
 
     <script>
+        function recordSiteVisit() {
+            let sessionId = '';
+
+            try {
+                sessionId = sessionStorage.getItem('hms_visit_session') || '';
+                if (!sessionId) {
+                    sessionId = window.crypto?.randomUUID
+                        ? window.crypto.randomUUID()
+                        : `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+                    sessionStorage.setItem('hms_visit_session', sessionId);
+                }
+            } catch (error) {
+                sessionId = `${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+            }
+
+            const body = JSON.stringify({
+                sessionId,
+                referrer: document.referrer || '',
+                language: navigator.language || '',
+            });
+
+            if (navigator.sendBeacon) {
+                const payload = new Blob([body], { type: 'application/json' });
+                if (navigator.sendBeacon('/api/analytics/visit', payload)) {
+                    return;
+                }
+            }
+
+            fetch('/api/analytics/visit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                keepalive: true,
+            }).catch(() => {});
+        }
+
         async function trackShipment() {
             const trackNumber = document.getElementById('trackingNumber').value.trim();
             const resultBox = document.getElementById('trackingResult');
@@ -710,6 +746,7 @@
         }
 
         window.onload = () => {
+            recordSiteVisit();
             loadLatestNews();
             document.getElementById('trackingNumber').addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {

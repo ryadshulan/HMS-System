@@ -49,6 +49,36 @@ function formatDate(value) {
   }
 }
 
+function formatAnalyticsDay(value) {
+  if (!value) {
+    return '-';
+  }
+
+  try {
+    return new Intl.DateTimeFormat('ar-YE', {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'Asia/Aden',
+    }).format(new Date(`${value}T12:00:00Z`));
+  } catch (error) {
+    return value;
+  }
+}
+
+function getDeviceLabel(value) {
+  return (
+    {
+      desktop: 'كمبيوتر',
+      mobile: 'هاتف',
+      tablet: 'جهاز لوحي',
+    }[value] || 'غير معروف'
+  );
+}
+
+function getReferrerLabel(value) {
+  return value && value !== 'direct' ? value : 'دخول مباشر';
+}
+
 function getNotificationFailureReason(item) {
   if (!item || item.delivered) {
     return '';
@@ -270,6 +300,7 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [whatsappStatus, setWhatsappStatus] = useState(null);
   const [whatsappMessages, setWhatsappMessages] = useState([]);
+  const [visitAnalytics, setVisitAnalytics] = useState(null);
   const [shipmentSearch, setShipmentSearch] = useState('');
   const [toasts, setToasts] = useState([]);
   const [uiHistory, setUiHistory] = useState(getStoredUiHistory());
@@ -322,6 +353,15 @@ function App() {
       lastActivity: logs[0] ? `${logs[0].action} - ${formatDate(logs[0].createdAt)}` : 'لا يوجد نشاط بعد',
     };
   }, [shipments, clients, newsList, logs, milestones]);
+
+  const visitChartData = useMemo(
+    () => (Array.isArray(visitAnalytics?.daily) ? visitAnalytics.daily.slice(-14) : []),
+    [visitAnalytics]
+  );
+  const visitChartMaximum = useMemo(
+    () => Math.max(1, ...visitChartData.map((item) => Number(item.visits) || 0)),
+    [visitChartData]
+  );
 
   const shipmentMilestoneSequence = useMemo(
     () => deriveMilestoneSequence(milestones, shipmentForm.milestones || {}),
@@ -448,6 +488,10 @@ function App() {
         apiRequest('/api/notifications'),
         apiRequest('/api/whatsapp/status'),
         apiRequest('/api/whatsapp/messages'),
+        apiRequest('/api/analytics/overview?days=30').catch((error) => ({
+          unavailable: true,
+          message: error.message,
+        })),
       ];
 
       if (currentUser.role === 'admin' || currentUser.role === 'manager') {
@@ -464,6 +508,7 @@ function App() {
         notificationsData,
         whatsappStatusData,
         whatsappMessagesData,
+        visitAnalyticsData,
         usersData,
       ] = await Promise.all(requests);
 
@@ -474,6 +519,7 @@ function App() {
       setNotifications(notificationsData);
       setWhatsappStatus(whatsappStatusData);
       setWhatsappMessages(whatsappMessagesData);
+      setVisitAnalytics(visitAnalyticsData);
       setUsers(usersData);
       setMilestones(milestoneData);
     } catch (error) {
@@ -1297,6 +1343,140 @@ function App() {
                   </div>
                   <i className="fas fa-users"></i>
                 </div>
+              </div>
+
+              <div className="card visit-analytics-card">
+                <div className="toolbar">
+                  <div>
+                    <h3><i className="fas fa-chart-line"></i> مراقبة زيارات الموقع</h3>
+                    <span className="muted">آخر 30 يوماً • ${visitAnalytics?.timeZone || 'Asia/Aden'}</span>
+                  </div>
+                  <div className="button-row">
+                    <span className="badge success"><i className="fas fa-lock"></i> خاص</span>
+                    <button
+                      className="btn btn-secondary"
+                      onClick=${() => loadAllData()}
+                      title="تحديث الإحصاءات"
+                    >
+                      <i className="fas fa-rotate"></i>
+                      تحديث
+                    </button>
+                  </div>
+                </div>
+
+                ${visitAnalytics?.unavailable
+                  ? html`<${EmptyState}>تعذر تحميل إحصاءات الزيارات حالياً.<//>`
+                  : visitAnalytics
+                    ? html`
+                        <div className="visit-summary-grid">
+                          <div className="visit-summary-item">
+                            <span className="muted">زيارات اليوم</span>
+                            <strong>${Number(visitAnalytics.totals?.todayVisits || 0).toLocaleString('ar-EG')}</strong>
+                          </div>
+                          <div className="visit-summary-item">
+                            <span className="muted">زوار اليوم</span>
+                            <strong>${Number(visitAnalytics.totals?.todayVisitors || 0).toLocaleString('ar-EG')}</strong>
+                          </div>
+                          <div className="visit-summary-item">
+                            <span className="muted">آخر 7 أيام</span>
+                            <strong>${Number(visitAnalytics.totals?.last7Days || 0).toLocaleString('ar-EG')}</strong>
+                          </div>
+                          <div className="visit-summary-item">
+                            <span className="muted">إجمالي الزيارات</span>
+                            <strong>${Number(visitAnalytics.totals?.visits || 0).toLocaleString('ar-EG')}</strong>
+                          </div>
+                        </div>
+
+                        <div className="visit-details-grid">
+                          <section className="visit-chart-section">
+                            <div className="section-title-row">
+                              <h4>الحركة خلال 14 يوماً</h4>
+                              <span className="muted">
+                                ${Number(visitAnalytics.totals?.last30Days || 0).toLocaleString('ar-EG')} زيارة خلال 30 يوماً
+                              </span>
+                            </div>
+                            <div className="visit-bars">
+                              ${visitChartData.map(
+                                (item) => html`
+                                  <div
+                                    key=${item.date}
+                                    className="visit-bar-column"
+                                    title=${`${item.visits} زيارة • ${item.visitors} زائر`}
+                                  >
+                                    <span className="visit-bar-value">${item.visits}</span>
+                                    <div className="visit-bar-track">
+                                      <span
+                                        style=${{
+                                          height: `${item.visits ? Math.max(10, (item.visits / visitChartMaximum) * 100) : 0}%`,
+                                        }}
+                                      ></span>
+                                    </div>
+                                    <small>${formatAnalyticsDay(item.date)}</small>
+                                  </div>
+                                `
+                              )}
+                            </div>
+                          </section>
+
+                          <section className="visit-breakdown-section">
+                            <div>
+                              <h4>مصادر الزيارات</h4>
+                              <div className="visit-list">
+                                ${(visitAnalytics.referrers || []).length
+                                  ? visitAnalytics.referrers.map(
+                                      (item) => html`
+                                        <div key=${item.source} className="visit-list-row">
+                                          <span>${getReferrerLabel(item.source)}</span>
+                                          <strong>${Number(item.visits || 0).toLocaleString('ar-EG')}</strong>
+                                        </div>
+                                      `
+                                    )
+                                  : html`<span className="muted">لا توجد زيارات مسجلة بعد.</span>`}
+                              </div>
+                            </div>
+                            <div>
+                              <h4>الأجهزة</h4>
+                              <div className="visit-list">
+                                ${(visitAnalytics.devices || []).length
+                                  ? visitAnalytics.devices.map(
+                                      (item) => html`
+                                        <div key=${item.type} className="visit-list-row">
+                                          <span>${getDeviceLabel(item.type)}</span>
+                                          <strong>${Number(item.visits || 0).toLocaleString('ar-EG')}</strong>
+                                        </div>
+                                      `
+                                    )
+                                  : html`<span className="muted">لا توجد بيانات أجهزة بعد.</span>`}
+                              </div>
+                            </div>
+                          </section>
+                        </div>
+
+                        <div className="visit-recent">
+                          <div className="section-title-row">
+                            <h4>أحدث الزيارات</h4>
+                            <span className="muted">
+                              ${Number(visitAnalytics.totals?.visitors || 0).toLocaleString('ar-EG')} زائر تقريبي
+                            </span>
+                          </div>
+                          <div className="visit-recent-grid">
+                            ${(visitAnalytics.recent || []).length
+                              ? visitAnalytics.recent.map(
+                                  (item, index) => html`
+                                    <div key=${`${item.createdAt}-${index}`} className="visit-recent-item">
+                                      <i className=${`fas ${item.deviceType === 'mobile' ? 'fa-mobile-screen' : item.deviceType === 'tablet' ? 'fa-tablet-screen-button' : 'fa-desktop'}`}></i>
+                                      <div>
+                                        <strong>${getDeviceLabel(item.deviceType)}</strong>
+                                        <span>${getReferrerLabel(item.referrer)} • ${formatDate(item.createdAt)}</span>
+                                      </div>
+                                    </div>
+                                  `
+                                )
+                              : html`<span className="muted">ستظهر الزيارات الجديدة هنا.</span>`}
+                          </div>
+                        </div>
+                      `
+                    : html`<${EmptyState}>جاري تحميل إحصاءات الزيارات...<//>`}
               </div>
 
               <div className="card">

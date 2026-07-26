@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:facebook && npm run test:milestones && npm run test:whatsapp && npm run test:password-recovery",
+    "test": "npm run test:facebook && npm run test:milestones && npm run test:whatsapp && npm run test:password-recovery && npm run test:analytics",
     "test:facebook": "node tests/facebook-news.unit.js",
     "test:milestones": "node tests/milestone-dates.integration.js",
     "test:whatsapp": "node tests/whatsapp-crm.integration.js",
     "test:password-recovery": "node tests/password-recovery.integration.js",
+    "test:analytics": "node tests/site-analytics.integration.js",
     "start": "node server.js"
   },
   "keywords": [],
