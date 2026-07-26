@@ -10,6 +10,7 @@ const llms = fs.readFileSync(path.join(rootDir, 'public', 'llms.txt'), 'utf8');
 
 assert.match(indexHtml, /<link rel="canonical" href="https:\/\/hmstar\.net\/">/);
 assert.match(indexHtml, /<meta property="og:url" content="https:\/\/hmstar\.net\/">/);
+assert.match(indexHtml, /<meta name="google-site-verification" content="[^"]+">/);
 assert.match(indexHtml, /شحن من الصين إلى اليمن/);
 assert.match(indexHtml, /"@type": "WebSite"/);
 assert.match(indexHtml, /"@type": \["Organization", "LocalBusiness"\]/);
