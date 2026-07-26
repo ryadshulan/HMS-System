@@ -42,7 +42,7 @@
           },
           "image": "https://hmstar.net/uploads/شعار النجم الحديث.jpg",
           "description": "شركة شحن وخدمات لوجستية متخصصة في تجميع وشحن البضائع من الصين إلى اليمن والتخليص الجمركي وتتبع الحاويات.",
-          "email": "alwesamlightech@gmail.com",
+          "email": "info@hmstar.net",
           "telephone": "+967784790005",
           "address": {
             "@type": "PostalAddress",
@@ -600,6 +600,49 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .public-footer {
+            background: #1a3c46;
+            color: #d8e8ec;
+            border-top: 4px solid var(--secondary-color);
+        }
+
+        .public-footer-inner {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 24px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+        }
+
+        .public-footer p {
+            margin: 0;
+        }
+
+        .public-footer nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
+        .public-footer a {
+            color: #fff;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .public-footer a:hover {
+            color: #f9b494;
+        }
+
+        @media (max-width: 640px) {
+            .public-footer-inner {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -665,7 +708,7 @@
                 <p style="line-height:1.9; color:#5e7078;">نقدم حلولًا لوجستية متكاملة بأسعار تنافسية وخبرة طويلة في السوق الصيني واليمني مع متابعة دقيقة للشحنات من المستودع الأول حتى التسليم النهائي.</p>
                 <p style="line-height:1.9; color:#5e7078;"><i class="fas fa-map-marker-alt"></i> دار سعد، الشيخ عثمان، عدن، اليمن</p>
                 <p style="line-height:1.9; color:#5e7078;" dir="ltr"><i class="fas fa-phone"></i> +967 784 790 005</p>
-                <p style="line-height:1.9; color:#5e7078;"><i class="fas fa-envelope"></i> alwesamlightech@gmail.com</p>
+                <p style="line-height:1.9; color:#5e7078;"><i class="fas fa-envelope"></i> <a href="mailto:info@hmstar.net">info@hmstar.net</a></p>
             </div>
             <div class="about-panel">
                 <h4 style="color:var(--primary-color); margin-top:0;"><i class="fas fa-map-marker-alt"></i> مكتب الصين</h4>
@@ -676,6 +719,17 @@
         </div>
     </section>
     </main>
+
+    <footer class="public-footer">
+        <div class="public-footer-inner">
+            <p>© 2026 النجم الحديث للشحن</p>
+            <nav aria-label="الروابط القانونية">
+                <a href="/privacy-policy">سياسة الخصوصية</a>
+                <a href="/data-deletion">حذف بيانات المستخدم</a>
+                <a href="mailto:info@hmstar.net">info@hmstar.net</a>
+            </nav>
+        </div>
+    </footer>
 
     <script>
         function recordSiteVisit() {

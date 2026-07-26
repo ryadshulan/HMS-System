@@ -305,6 +305,12 @@ app.use((req, res, next) => {
 
   return next();
 });
+app.get(['/privacy-policy', '/privacy-policy/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'privacy-policy.html'));
+});
+app.get(['/data-deletion', '/data-deletion/'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'data-deletion.html'));
+});
 app.use(
   '/uploads',
   express.static(uploadDir, {
