@@ -55,6 +55,54 @@ async function run() {
   assert.deepStrictEqual(await disabledClient.getPosts(), []);
   assert.strictEqual(disabledClient.getStatus().configured, false);
 
+  const originalDateNow = Date.now;
+  let now = Date.now();
+  let staleCalls = 0;
+
+  try {
+    Date.now = () => now;
+    const staleFallbackClient = createFacebookNewsClient({
+      pageId: '107738988661891',
+      accessToken: 'test-token',
+      cacheTtlMs: 30 * 1000,
+      fetchImpl: async () => {
+        staleCalls += 1;
+        if (staleCalls > 1) {
+          return {
+            ok: false,
+            async json() {
+              return { error: { code: 190, message: 'Temporary token error' } };
+            },
+          };
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return {
+              data: [{
+                id: '107738988661891_stale',
+                message: 'Cached Facebook post',
+                created_time: '2026-07-24T10:00:00+0000',
+                is_published: true,
+              }],
+            };
+          },
+        };
+      },
+    });
+
+    const cachedPosts = await staleFallbackClient.getPosts();
+    now += 31 * 1000;
+    const stalePosts = await staleFallbackClient.getPosts();
+
+    assert.strictEqual(staleCalls, 2);
+    assert.deepStrictEqual(stalePosts, cachedPosts);
+    assert.match(staleFallbackClient.getStatus().lastError, /Temporary token error/);
+  } finally {
+    Date.now = originalDateNow;
+  }
+
   console.log('Facebook news unit test passed.');
 }
 
