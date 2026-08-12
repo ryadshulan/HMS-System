@@ -162,17 +162,6 @@ function makeUserForm(current = null) {
   };
 }
 
-function getTodayInAden() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Aden',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
 function isShipmentDelivered(shipment, milestones) {
   const finalStageKey = milestones.length
     ? milestones[milestones.length - 1].key
@@ -181,11 +170,9 @@ function isShipmentDelivered(shipment, milestones) {
 }
 
 function deriveMilestoneSequence(definitions, milestoneState) {
-  const todayValue = getTodayInAden();
   const highestCompletedIndex = definitions.reduce((highestIndex, definition, index) => {
     const state = milestoneState[definition.key] || {};
-    const dateReached = Boolean(state.estimatedDate && state.estimatedDate <= todayValue);
-    return state.manualCompleted || dateReached ? index : highestIndex;
+    return state.manualCompleted ? index : highestIndex;
   }, -1);
   const firstIncompleteIndex =
     highestCompletedIndex >= definitions.length - 1 ? -1 : highestCompletedIndex + 1;
@@ -198,7 +185,6 @@ function deriveMilestoneSequence(definitions, milestoneState) {
       ...definition,
       completed,
       manualCompleted: Boolean(state.manualCompleted),
-      autoCompleted: completed && !state.manualCompleted,
       estimatedDate: state.estimatedDate || '',
       visualState: completed ? 'completed' : index === currentIndex ? 'current' : 'upcoming',
     };
@@ -1690,9 +1676,6 @@ function App() {
                               onInput=${(event) => updateShipmentMilestoneDate(step.key, event.target.value)}
                             />
                           </label>
-                          ${step.autoCompleted
-                            ? html`<div className="milestone-auto-note"><i className="fas fa-calendar-check"></i> اكتملت تلقائيًا لأن التاريخ التقريبي قد وصل.</div>`
-                            : null}
                           <p className="muted"><strong>قبل التأكيد:</strong> ${step.pendingAr}</p>
                           <p className="muted"><strong>بعد التأكيد:</strong> ${step.completedAr}</p>
                         </div>

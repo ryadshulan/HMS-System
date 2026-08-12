@@ -89,10 +89,6 @@ const facebookNewsClient = createFacebookNewsClient({
   limit: process.env.FACEBOOK_NEWS_LIMIT,
   cacheTtlMs: Number(process.env.FACEBOOK_NEWS_CACHE_SECONDS || 120) * 1000,
 });
-const automaticMilestoneIntervalMs = Math.max(
-  Number(process.env.AUTOMATIC_MILESTONE_INTERVAL_MS || 5 * 60 * 1000),
-  60 * 1000
-);
 const mongoServerSelectionTimeoutMs = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10000);
 const requireDatabase = process.env.REQUIRE_DB === 'true' || isProduction;
 const allowedCorsOrigins = new Set(
@@ -364,7 +360,6 @@ mongoose
   })
   .then(() => {
     console.log(`MongoDB Connected: ${mongoose.connection.name || mongoDbName || 'default'}`);
-    startAutomaticMilestoneWorker();
   })
   .catch((error) => {
     setLastMongoConnectionError(error);
@@ -559,7 +554,6 @@ function buildDefaultMilestones() {
     accumulator[definition.key] = {
       completed: false,
       manualCompleted: false,
-      autoCompleted: false,
       estimatedDate: '',
       updatedAt: null,
     };
@@ -688,27 +682,11 @@ function normalizeEstimatedDate(value) {
     : dateValue;
 }
 
-function getTodayInAppTimeZone() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: appTimeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function isEstimatedDateReached(estimatedDate, today = getTodayInAppTimeZone()) {
-  return Boolean(estimatedDate && estimatedDate <= today);
-}
-
 function readMilestoneState(value, fallbackUpdatedAt = null) {
   if (typeof value === 'boolean') {
     return {
       completed: value,
       manualCompleted: value,
-      autoCompleted: false,
       estimatedDate: '',
       updatedAt: value ? fallbackUpdatedAt || new Date() : null,
     };
@@ -724,7 +702,6 @@ function readMilestoneState(value, fallbackUpdatedAt = null) {
     return {
       completed: manualCompleted,
       manualCompleted,
-      autoCompleted: false,
       estimatedDate,
       updatedAt: manualCompleted ? value.updatedAt || fallbackUpdatedAt || new Date() : null,
     };
@@ -733,7 +710,6 @@ function readMilestoneState(value, fallbackUpdatedAt = null) {
   return {
     completed: false,
     manualCompleted: false,
-    autoCompleted: false,
     estimatedDate: '',
     updatedAt: null,
   };
@@ -758,7 +734,6 @@ function normalizeMilestones(input, legacyStatus = '', updatedAt = null) {
         normalized[definition.key] = {
           completed: true,
           manualCompleted: true,
-          autoCompleted: false,
           estimatedDate: '',
           updatedAt: updatedAt || new Date(),
         };
@@ -766,28 +741,19 @@ function normalizeMilestones(input, legacyStatus = '', updatedAt = null) {
     });
   }
 
-  const today = getTodayInAppTimeZone();
   const highestCompletedIndex = milestoneDefinitions.reduce((highestIndex, definition, index) => {
     const state = normalized[definition.key];
-    return state.manualCompleted || isEstimatedDateReached(state.estimatedDate, today)
-      ? index
-      : highestIndex;
+    return state.manualCompleted ? index : highestIndex;
   }, -1);
 
   milestoneDefinitions.forEach((definition, index) => {
     const state = normalized[definition.key];
     const completed = index <= highestCompletedIndex;
-    const autoCompleted = completed && !state.manualCompleted;
 
     normalized[definition.key] = {
       ...state,
       completed,
-      autoCompleted,
-      updatedAt:
-        state.updatedAt ||
-        (autoCompleted && state.estimatedDate
-          ? new Date(`${state.estimatedDate}T00:00:00.000Z`)
-          : null),
+      updatedAt: state.updatedAt || null,
     };
   });
 
@@ -831,7 +797,6 @@ function buildMilestoneSequence(milestones) {
       ...definition,
       completed,
       manualCompleted: Boolean(state.manualCompleted),
-      autoCompleted: Boolean(state.autoCompleted),
       estimatedDate: state.estimatedDate || '',
       visualState,
       updatedAt: state.updatedAt || null,
@@ -1581,81 +1546,6 @@ async function buildWhatsAppStatus() {
   }
 
   return base;
-}
-
-let automaticMilestoneRunActive = false;
-let automaticMilestoneTimer = null;
-
-async function processAutomaticMilestoneCompletions() {
-  if (automaticMilestoneRunActive || !isDatabaseConnected()) {
-    return;
-  }
-
-  automaticMilestoneRunActive = true;
-  try {
-    const today = getTodayInAppTimeZone();
-    const shipments = await Shipment.find({
-      [`milestones.${finalMilestoneKey}.estimatedDate`]: { $lte: today, $ne: '' },
-    });
-
-    for (const shipment of shipments) {
-      const rawFinalState = shipment.milestones?.[finalMilestoneKey] || {};
-      if (rawFinalState.completed) {
-        continue;
-      }
-
-      const milestones = normalizeMilestones(
-        shipment.milestones,
-        shipment.status,
-        shipment.updatedAt
-      );
-      if (!milestones[finalMilestoneKey]?.completed) {
-        continue;
-      }
-
-      const currentStatus = deriveShipmentStatus(milestones);
-      shipment.milestones = milestones;
-      shipment.status = currentStatus.en;
-      shipment.history = shipment.history || [];
-      shipment.history.unshift({
-        at: new Date(),
-        actorId: 'system',
-        actorName: 'automatic-milestone-worker',
-        note: 'Automatic completion from the approximate milestone date.',
-        location: shipment.location,
-        statusAr: currentStatus.ar,
-        milestoneStates: milestones,
-      });
-      shipment.history = shipment.history.slice(0, maxShipmentHistoryItems);
-      await shipment.save();
-
-      await dispatchDeliveryNotifications(shipment, null);
-      await writeAuditLog(
-        'إكمال تلقائي',
-        'الشحنات',
-        `تم إكمال الشحنة ${shipment.id} تلقائيًا حسب التاريخ التقريبي`,
-        null,
-        { trackingNumber: shipment.id, stageKey: finalMilestoneKey }
-      );
-    }
-  } catch (error) {
-    console.error('Automatic milestone processing error:', error?.message || error);
-  } finally {
-    automaticMilestoneRunActive = false;
-  }
-}
-
-function startAutomaticMilestoneWorker() {
-  if (automaticMilestoneTimer) {
-    return;
-  }
-
-  processAutomaticMilestoneCompletions();
-  automaticMilestoneTimer = setInterval(
-    processAutomaticMilestoneCompletions,
-    automaticMilestoneIntervalMs
-  );
-  automaticMilestoneTimer.unref?.();
 }
 
 function escapeCsvValue(value) {

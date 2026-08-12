@@ -131,12 +131,10 @@ async function run() {
     const adenTitle = definitions.find((stage) => stage.key === 'adenArrival')?.titleAr;
 
     const assertions = {
-      automaticCompletion:
-        created.shipment.milestones.originWarehouse.completed === true &&
-        created.shipment.milestones.originWarehouse.autoCompleted === true,
-      currentAfterAutomaticCompletion:
-        created.shipment.currentStageKey === 'ningboPort',
-      delayedDateRevertedStage:
+      pastDateDoesNotCompleteStage:
+        created.shipment.milestones.originWarehouse.completed === false &&
+        created.shipment.currentStageKey === 'originWarehouse',
+      changingPastDateDoesNotChangeStage:
         delayed.shipment.milestones.originWarehouse.completed === false &&
         delayed.shipment.currentStageKey === 'originWarehouse',
       manualCompletionPropagatedSequentially:
