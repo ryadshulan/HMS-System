@@ -745,6 +745,13 @@ textarea {
   font-family: inherit;
 }
 
+.milestone-auto-note {
+  margin-bottom: 10px;
+  color: var(--success);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 .milestone-head {
   display: flex;
   justify-content: space-between;

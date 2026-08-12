@@ -7,6 +7,7 @@ const testPort = 3003;
 const baseUrl = `http://127.0.0.1:${testPort}`;
 const stamp = Date.now();
 const trackingNumber = `DATE-${stamp}`;
+const legacyTrackingNumber = `LEGACY-${stamp}`;
 let authCookie = '';
 
 const serverProcess = spawn(process.execPath, ['server.js'], {
@@ -92,15 +93,32 @@ async function run() {
     initialMilestones.originWarehouse.estimatedDate = '2020-01-01';
     initialMilestones.ningboPort.estimatedDate = '2099-01-01';
 
+    await mongoose.connect(process.env.MONGO_URI, {
+      dbName: testDatabaseName,
+      serverSelectionTimeoutMS: 10000,
+    });
+    await mongoose.connection.db.collection('shipments').insertOne({
+      id: legacyTrackingNumber,
+      location: 'China',
+      status: 'Loading at Origin Warehouse',
+      milestones: structuredClone(initialMilestones),
+      history: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await mongoose.disconnect();
+
     const created = await request('/api/shipments', {
       method: 'POST',
       body: JSON.stringify({
         trackingNumber,
         location: 'China',
+        milestoneCompletionMode: 'legacy-automatic',
         milestones: initialMilestones,
       }),
     });
 
+    const legacyView = await request(`/api/shipment/${legacyTrackingNumber}`);
     const delayedMilestones = structuredClone(initialMilestones);
     delayedMilestones.originWarehouse.estimatedDate = '2099-02-01';
     const delayed = await request('/api/shipments', {
@@ -131,12 +149,18 @@ async function run() {
     const adenTitle = definitions.find((stage) => stage.key === 'adenArrival')?.titleAr;
 
     const assertions = {
-      pastDateDoesNotCompleteStage:
+      newShipmentUsesManualMode:
+        created.shipment.milestoneCompletionMode === 'manual' &&
         created.shipment.milestones.originWarehouse.completed === false &&
         created.shipment.currentStageKey === 'originWarehouse',
-      changingPastDateDoesNotChangeStage:
+      newShipmentDateDoesNotChangeStage:
         delayed.shipment.milestones.originWarehouse.completed === false &&
         delayed.shipment.currentStageKey === 'originWarehouse',
+      legacyShipmentPreservesAutomaticProgress:
+        legacyView.milestoneCompletionMode === 'legacy-automatic' &&
+        legacyView.milestones.originWarehouse.completed === true &&
+        legacyView.milestones.originWarehouse.autoCompleted === true &&
+        legacyView.currentStageKey === 'ningboPort',
       manualCompletionPropagatedSequentially:
         ['originWarehouse', 'ningboPort', 'loadingOnBoard'].every(
           (key) => manual.shipment.milestones[key].completed

@@ -420,6 +420,11 @@ const shipmentSchema = new mongoose.Schema(
     location: { type: String, default: '', trim: true },
     updateNote: { type: String, default: '', trim: true },
     status: { type: String, default: '' },
+    milestoneCompletionMode: {
+      type: String,
+      enum: ['legacy-automatic', 'manual'],
+      default: undefined,
+    },
     milestones: {
       type: mongoose.Schema.Types.Mixed,
       default: () => buildDefaultMilestones(),
@@ -682,6 +687,25 @@ function normalizeEstimatedDate(value) {
     : dateValue;
 }
 
+function resolveMilestoneCompletionMode(value) {
+  return value === 'manual' ? 'manual' : 'legacy-automatic';
+}
+
+function getTodayInAppTimeZone() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: appTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isEstimatedDateReached(estimatedDate, today = getTodayInAppTimeZone()) {
+  return Boolean(estimatedDate && estimatedDate <= today);
+}
+
 function readMilestoneState(value, fallbackUpdatedAt = null) {
   if (typeof value === 'boolean') {
     return {
@@ -715,8 +739,14 @@ function readMilestoneState(value, fallbackUpdatedAt = null) {
   };
 }
 
-function normalizeMilestones(input, legacyStatus = '', updatedAt = null) {
+function normalizeMilestones(
+  input,
+  legacyStatus = '',
+  updatedAt = null,
+  milestoneCompletionMode = 'legacy-automatic'
+) {
   const normalized = buildDefaultMilestones();
+  const completionMode = resolveMilestoneCompletionMode(milestoneCompletionMode);
 
   if (input && typeof input === 'object') {
     milestoneDefinitions.forEach((definition) => {
@@ -741,19 +771,29 @@ function normalizeMilestones(input, legacyStatus = '', updatedAt = null) {
     });
   }
 
+  const today = getTodayInAppTimeZone();
   const highestCompletedIndex = milestoneDefinitions.reduce((highestIndex, definition, index) => {
     const state = normalized[definition.key];
-    return state.manualCompleted ? index : highestIndex;
+    const completedAutomatically =
+      completionMode === 'legacy-automatic' && isEstimatedDateReached(state.estimatedDate, today);
+    return state.manualCompleted || completedAutomatically ? index : highestIndex;
   }, -1);
 
   milestoneDefinitions.forEach((definition, index) => {
     const state = normalized[definition.key];
     const completed = index <= highestCompletedIndex;
+    const autoCompleted =
+      completionMode === 'legacy-automatic' && completed && !state.manualCompleted;
 
     normalized[definition.key] = {
       ...state,
       completed,
-      updatedAt: state.updatedAt || null,
+      autoCompleted,
+      updatedAt:
+        state.updatedAt ||
+        (autoCompleted && state.estimatedDate
+          ? new Date(`${state.estimatedDate}T00:00:00.000Z`)
+          : null),
     };
   });
 
@@ -797,6 +837,7 @@ function buildMilestoneSequence(milestones) {
       ...definition,
       completed,
       manualCompleted: Boolean(state.manualCompleted),
+      autoCompleted: Boolean(state.autoCompleted),
       estimatedDate: state.estimatedDate || '',
       visualState,
       updatedAt: state.updatedAt || null,
@@ -822,7 +863,13 @@ function serializeUser(userDocument) {
 
 function serializeShipment(document) {
   const shipment = document.toObject ? document.toObject() : document;
-  const milestones = normalizeMilestones(shipment.milestones, shipment.status, shipment.updatedAt);
+  const milestoneCompletionMode = resolveMilestoneCompletionMode(shipment.milestoneCompletionMode);
+  const milestones = normalizeMilestones(
+    shipment.milestones,
+    shipment.status,
+    shipment.updatedAt,
+    milestoneCompletionMode
+  );
   const currentStatus = deriveShipmentStatus(milestones);
 
   return {
@@ -830,6 +877,7 @@ function serializeShipment(document) {
     id: shipment.id,
     location: shipment.location || '',
     updateNote: shipment.updateNote || '',
+    milestoneCompletionMode,
     status: currentStatus.en,
     statusAr: currentStatus.ar,
     currentStageKey: currentStatus.key,
@@ -2220,24 +2268,36 @@ async function upsertShipmentRecord(req, res) {
   const trackingNumber = normalizeTrackingId(req.body?.trackingNumber);
   const location = String(req.body?.location || '').trim();
   const updateNote = String(req.body?.updateNote || '').trim();
-  const milestones = normalizeMilestones(req.body?.milestones, req.body?.status, new Date());
 
   if (!trackingNumber) {
     return res.status(400).json({ message: 'Tracking number is required.' });
   }
 
   const existingShipment = await Shipment.findOne({ id: trackingNumber });
+  const milestoneCompletionMode = existingShipment
+    ? resolveMilestoneCompletionMode(existingShipment.milestoneCompletionMode)
+    : 'manual';
+  const milestones = normalizeMilestones(
+    req.body?.milestones,
+    req.body?.status,
+    new Date(),
+    milestoneCompletionMode
+  );
   const previousMilestones = normalizeMilestones(
     existingShipment?.milestones,
     existingShipment?.status,
-    existingShipment?.updatedAt
+    existingShipment?.updatedAt,
+    milestoneCompletionMode
   );
   const currentStatus = deriveShipmentStatus(milestones);
 
-  const shipment = existingShipment || new Shipment({ id: trackingNumber });
+  const shipment =
+    existingShipment ||
+    new Shipment({ id: trackingNumber, milestoneCompletionMode });
   shipment.id = trackingNumber;
   shipment.location = location;
   shipment.updateNote = updateNote;
+  shipment.milestoneCompletionMode = milestoneCompletionMode;
   shipment.status = currentStatus.en;
   shipment.milestones = milestones;
   shipment.history = shipment.history || [];
@@ -2332,7 +2392,8 @@ app.post('/api/shipments/:trackingNumber/notifications', requireAuth, async (req
   const milestones = normalizeMilestones(
     shipment.milestones,
     shipment.status,
-    shipment.updatedAt
+    shipment.updatedAt,
+    shipment.milestoneCompletionMode
   );
   if (!milestones[finalMilestoneKey]?.completed) {
     return res.status(409).json({
